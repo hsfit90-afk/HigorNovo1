@@ -1,0 +1,6 @@
+{
+  "name": "Agenda Barbearia",
+  "description": "Aplicativo de agendamento para barbearia com interface moderna em tons escuros e dourado.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

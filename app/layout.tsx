@@ -1,15 +1,18 @@
-import type {Metadata} from 'next';
-import './globals.css'; // Global styles
+import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'My Google AI Studio App',
-  description: 'My Google AI Studio App',
+export const metadata = {
+  title: 'Barbearia Novo de Novo',
+  description: 'O seu estilo, nossa especialidade.',
 };
 
-export default function RootLayout({children}: {children: React.ReactNode}) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en">
-      <body suppressHydrationWarning>{children}</body>
+    <html lang="pt-BR">
+      <body className="bg-zinc-950">{children}</body>
     </html>
   );
 }

@@ -1,3 +1,4 @@
+import Script from 'next/script';
 import "./globals.css";
 
 export const metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="bg-zinc-950 text-zinc-50 antialiased">
+        <Script src="https://cdn.tailwindcss.com" strategy="beforeInteractive" />
         {children}
       </body>
     </html>

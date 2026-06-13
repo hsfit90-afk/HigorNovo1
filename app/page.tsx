@@ -87,10 +87,9 @@ export default function Home() {
     if (error) {
       setMensagem('Erro ao agendar. Tente novamente.');
     } else {
-      setMensagem('Sucesso! Redirecionando para o seu WhatsApp...');
+      setMensagem('Sucesso! Redirecionando para o WhatsApp...');
       setHorariosOcupados([...horariosOcupados, hora]);
       
-      // WhatsApp
       const partesData = data.split('-');
       const dataBr = `${partesData[2]}/${partesData[1]}/${partesData[0]}`; 
       
@@ -116,8 +115,8 @@ export default function Home() {
 
   const horariosLivres = HORARIOS_PADRAO.filter(h => !horariosOcupados.includes(h));
 
-  // Verifica se quem está logado é o administrador (Troque o email abaixo se precisar)
-  const isAdmin = session?.user?.email === 'admin@barbearia.com';
+  // LIBERA O BOTÃO DO ADMIN SE O EMAIL FOR O DO HIGOR
+  const isAdmin = session?.user?.email === 'souza.higor@gmail.com';
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
@@ -134,7 +133,7 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-3">
-          {/* BOTÃO SECRETO SÓ PARA O ADMIN */}
+          {/* BOTÃO VIP DO HIGOR (OS CLIENTES NÃO VÃO VER) */}
           {isAdmin && (
             <button 
               onClick={() => router.push('/admin')} 

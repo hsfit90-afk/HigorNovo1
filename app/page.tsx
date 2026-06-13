@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Calendar, Clock, Scissors, User, LogOut, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Calendar, Clock, Scissors, User, LogOut, ChevronDown, CheckCircle2, ShieldCheck } from 'lucide-react';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
 import { createClient } from '@supabase/supabase-js';
@@ -12,7 +12,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Horários de trabalho padrão da barbearia (de 1 em 1 hora)
 const HORARIOS_PADRAO = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 
 export default function Home() {
@@ -20,18 +19,15 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<any>(null);
 
-  // Estados do Formulário escolhidos pelo cliente
   const [servico, setServico] = useState('');
   const [profissional, setProfissional] = useState('Qualquer profissional');
   const [data, setData] = useState('');
   const [hora, setHora] = useState('');
   
-  // Controle de Horários
   const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]);
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [mensagem, setMensagem] = useState('');
 
-  // 1. Segurança: Verifica quem está logado
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -45,12 +41,10 @@ export default function Home() {
     checkUser();
   }, [router]);
 
-  // 2. Inteligência: Busca horários ocupados no banco sempre que o cliente escolher um DIA
   useEffect(() => {
     const buscarHorarios = async () => {
-      if (!data) return; // Só busca se o cara escolheu um dia
+      if (!data) return; 
       
-      // Vai no Supabase e procura agendamentos naquele dia
       const { data: agendamentos, error } = await supabase
         .from('agendamentos')
         .select('hora')
@@ -58,14 +52,13 @@ export default function Home() {
         .eq('status', 'Confirmado');
       
       if (!error && agendamentos) {
-        // Salva na memória apenas as horas que já estão marcadas: ex ['14:00', '16:00']
         setHorariosOcupados(agendamentos.map(a => a.hora));
       }
     };
     
     buscarHorarios();
-    setHora(''); // Desmarca a hora se a pessoa trocar de dia no calendário
-  }, [data]); // Só roda de novo se a "data" mudar
+    setHora(''); 
+  }, [data]); 
 
   const handleSair = async () => {
     await supabase.auth.signOut();
@@ -81,10 +74,9 @@ export default function Home() {
     setLoadingAgendamento(true);
     setMensagem('');
 
-    // Salva de verdade no banco de dados
     const { error } = await supabase.from('agendamentos').insert({
       user_id: session?.user?.id,
-      cliente_nome: session?.user?.email, // Salvando o email como nome para facilitar o seu painel
+      cliente_nome: session?.user?.email, 
       servico,
       profissional,
       data,
@@ -95,14 +87,24 @@ export default function Home() {
     if (error) {
       setMensagem('Erro ao agendar. Tente novamente.');
     } else {
-      setMensagem('Sucesso! Seu horário foi agendado.');
-      setHorariosOcupados([...horariosOcupados, hora]); // Apaga o horário da tela na mesma hora
-      setHora(''); // Reseta a hora
+      setMensagem('Sucesso! Redirecionando para o seu WhatsApp...');
+      setHorariosOcupados([...horariosOcupados, hora]);
+      
+      // WhatsApp
+      const partesData = data.split('-');
+      const dataBr = `${partesData[2]}/${partesData[1]}/${partesData[0]}`; 
+      
+      const texto = `Olá! Acabei de agendar pelo aplicativo:%0A%0A✂️ *Serviço:* ${servico}%0A👤 *Profissional:* ${profissional}%0A📅 *Data:* ${dataBr}%0A⏰ *Horário:* ${hora}%0A%0ATe aguardo!`;
+      
+      const numeroBarbeiro = '5511947349200';
+      
+      window.open(`https://wa.me/${numeroBarbeiro}?text=${texto}`, '_blank');
+      
+      setHora(''); 
     }
     setLoadingAgendamento(false);
   };
 
-  // Tela de Carregamento inicial
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
@@ -112,13 +114,14 @@ export default function Home() {
     );
   }
 
-  // Mágica: Pega todos os horários e tira os que já estão ocupados
   const horariosLivres = HORARIOS_PADRAO.filter(h => !horariosOcupados.includes(h));
+
+  // Verifica se quem está logado é o administrador (Troque o email abaixo se precisar)
+  const isAdmin = session?.user?.email === 'admin@barbearia.com';
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
       
-      {/* Background Glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-amber-600/20 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-600/10 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
 
@@ -130,10 +133,23 @@ export default function Home() {
           <span className="text-xl font-black tracking-widest text-zinc-100 drop-shadow-md">NOVO DE NOVO</span>
         </div>
         
-        <button onClick={handleSair} className="flex items-center gap-2 bg-white/5 border border-white/10 text-zinc-300 px-6 py-2.5 rounded-full font-bold hover:bg-white/10 hover:text-white transition-all duration-300 backdrop-blur-md">
-          <LogOut size={16} />
-          <span className="text-sm">Sair</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {/* BOTÃO SECRETO SÓ PARA O ADMIN */}
+          {isAdmin && (
+            <button 
+              onClick={() => router.push('/admin')} 
+              className="hidden md:flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-6 py-2.5 rounded-full font-bold hover:bg-amber-500 hover:text-zinc-950 transition-all duration-300 backdrop-blur-md"
+            >
+              <ShieldCheck size={16} />
+              <span className="text-sm">Painel do Admin</span>
+            </button>
+          )}
+
+          <button onClick={handleSair} className="flex items-center gap-2 bg-white/5 border border-white/10 text-zinc-300 px-6 py-2.5 rounded-full font-bold hover:bg-white/10 hover:text-white transition-all duration-300 backdrop-blur-md">
+            <LogOut size={16} />
+            <span className="text-sm">Sair</span>
+          </button>
+        </div>
       </nav>
 
       <main className="flex flex-col lg:flex-row items-center justify-between p-6 md:p-12 gap-16 max-w-7xl mx-auto mt-4 relative z-10">
@@ -221,13 +237,12 @@ export default function Home() {
                   type="date" 
                   value={data}
                   onChange={(e) => setData(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]} // Bloqueia dias no passado!
+                  min={new Date().toISOString().split('T')[0]} 
                   className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-zinc-100 focus:outline-none focus:border-amber-500/50 transition-colors [color-scheme:dark] text-sm" 
                 />
               </div>
             </div>
 
-            {/* SÓ MOSTRA OS HORÁRIOS QUANDO ESCOLHER O DIA */}
             {data && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <label className="text-xs font-bold text-zinc-400 tracking-widest uppercase flex items-center gap-2">

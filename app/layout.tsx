@@ -1,21 +1,31 @@
-import './globals.css';
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
 
-export const metadata = {
-  title: 'Barbearia Novo de Novo',
-  description: 'O seu estilo, nossa especialidade.',
+const inter = Inter({ subsets: ["latin"] });
+
+export const viewport: Viewport = {
+  themeColor: "#f59e0b",
+};
+
+export const metadata: Metadata = {
+  title: "Barbearia Premium",
+  description: "O seu estilo, nossa obra de arte.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Barbearia",
+  },
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="pt-BR">
-      <head>
-        <script src="https://cdn.tailwindcss.com"></script>
-      </head>
-      <body className="bg-zinc-950">{children}</body>
+      <body className={inter.className}>{children}</body>
     </html>
   );
 }

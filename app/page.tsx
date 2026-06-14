@@ -12,7 +12,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// SEUS SERVIÇOS E PREÇOS EXATOS
+// SEUS SERVIÇOS
 const servicos = [
   { nome: 'Pezinho', preco: 'R$ 15', categoria: 'Básico' },
   { nome: 'Sobrancelha', preco: 'R$ 10', categoria: 'Básico' },
@@ -34,7 +34,7 @@ export default function Home() {
   const [isAdmin, setIsAdmin] = useState(false);
   
   const [agendamento, setAgendamento] = useState({
-    servico: '',
+    servicosSelecionados: [] as string[],
     data: '',
     hora: '',
     cliente_nome: '',
@@ -46,7 +46,6 @@ export default function Home() {
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [sucesso, setSucesso] = useState(false);
 
-  // Verifica o Login
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -60,44 +59,39 @@ export default function Home() {
     checkSession();
   }, []);
 
-  // SISTEMA INTELIGENTE DE HORÁRIOS (Almoço, Dias da Semana, etc)
   useEffect(() => {
     if (agendamento.data) {
       buscarHorariosOcupados(agendamento.data);
       
       const [ano, mes, dia] = agendamento.data.split('-');
       const date = new Date(Number(ano), Number(mes) - 1, Number(dia));
-      const dayOfWeek = date.getDay(); // 0 = Domingo, 1 = Segunda...
+      const dayOfWeek = date.getDay(); 
 
       if (dayOfWeek === 0) {
-        setHorariosDisponiveis([]); // Domingo fechado
+        setHorariosDisponiveis([]); 
         return;
       }
 
       let startHour = 9;
       let endHour = 21;
 
-      // REGRAS DE HORÁRIOS DOS DIAS
-      if (dayOfWeek === 1) { startHour = 15; endHour = 21; } // Segunda (15h às 21h)
-      else if (dayOfWeek === 3) { startHour = 9; endHour = 19; } // Quarta (09h às 19h)
-      else if (dayOfWeek === 4) { startHour = 9; endHour = 18; } // Quinta (09h às 18h)
-      // Terça, Sexta e Sábado usam o padrão (09h às 21h)
+      if (dayOfWeek === 1) { startHour = 15; endHour = 21; } 
+      else if (dayOfWeek === 3) { startHour = 9; endHour = 19; } 
+      else if (dayOfWeek === 4) { startHour = 9; endHour = 18; } 
 
       const slots: string[] = [];
       for (let h = startHour; h < endHour; h++) {
-        // PAUSA PARA ALMOÇO: Para as 13h, Volta as 15h. (Ignora 13h e 14h inteiros)
         if (h === 13 || h === 14) continue; 
-        
         slots.push(`${h.toString().padStart(2, '0')}:00`);
         slots.push(`${h.toString().padStart(2, '0')}:30`);
       }
       setHorariosDisponiveis(slots);
-      setAgendamento(prev => ({ ...prev, hora: '' })); // Reseta a hora ao trocar o dia
+      setAgendamento(prev => ({ ...prev, hora: '' })); 
     }
   }, [agendamento.data]);
 
   const buscarHorariosOcupados = async (data: string) => {
-    const { data: agendamentos, error } = await supabase
+    const { data: agendamentos } = await supabase
       .from('agendamentos')
       .select('hora')
       .eq('data', data)
@@ -108,6 +102,18 @@ export default function Home() {
     }
   };
 
+  // FUNÇÃO QUE PERMITE MARCAR E DESMARCAR VÁRIOS SERVIÇOS
+  const toggleServico = (nome: string) => {
+    setAgendamento(prev => {
+      const jaSelecionado = prev.servicosSelecionados.includes(nome);
+      if (jaSelecionado) {
+        return { ...prev, servicosSelecionados: prev.servicosSelecionados.filter(s => s !== nome) };
+      } else {
+        return { ...prev, servicosSelecionados: [...prev.servicosSelecionados, nome] };
+      }
+    });
+  };
+
   const handleAgendar = async () => {
     if (!isUserLoggedIn) {
       alert("Por favor, faça login ou cadastre-se para agendar seu horário.");
@@ -115,8 +121,8 @@ export default function Home() {
       return;
     }
 
-    if (!agendamento.servico || !agendamento.data || !agendamento.hora || !agendamento.cliente_nome || !agendamento.cliente_telefone) {
-      alert('Por favor, preencha todos os campos!');
+    if (agendamento.servicosSelecionados.length === 0 || !agendamento.data || !agendamento.hora || !agendamento.cliente_nome || !agendamento.cliente_telefone) {
+      alert('Por favor, preencha todos os campos e escolha pelo menos um serviço!');
       return;
     }
 
@@ -125,12 +131,15 @@ export default function Home() {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
 
+    // JUNTA OS MÚLTIPLOS SERVIÇOS COM UM "+"
+    const servicosFormatados = agendamento.servicosSelecionados.join(' + ');
+
     const { error } = await supabase
       .from('agendamentos')
       .insert([
         { 
           user_id: userId,
-          servico: agendamento.servico, 
+          servico: servicosFormatados, 
           data: agendamento.data, 
           hora: agendamento.hora,
           cliente_nome: agendamento.cliente_nome,
@@ -144,7 +153,7 @@ export default function Home() {
       setTimeout(() => {
         setSucesso(false);
         setAgendamento({
-          servico: '',
+          servicosSelecionados: [],
           data: '',
           hora: '',
           cliente_nome: '',
@@ -153,7 +162,7 @@ export default function Home() {
         buscarHorariosOcupados(agendamento.data);
       }, 3000);
     } else {
-      alert('Erro ao agendar. Tente novamente.');
+      alert('Erro ao agendar: ' + error.message);
     }
     setLoadingAgendamento(false);
   };
@@ -167,15 +176,13 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
       
-      {/* Círculos de luz no fundo */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
 
-      {/* Navegação Topo */}
       <nav className="flex justify-between items-center p-6 md:px-12 bg-zinc-950/40 backdrop-blur-2xl sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-            <Image src={logoImg} alt="Logo" className="w-full h-full object-cover" />
+          <div className="w-12 h-12 rounded-full overflow-hidden border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] bg-white">
+            <Image src={logoImg} alt="Logo" className="w-full h-full object-contain" />
           </div>
           <span className="text-xl font-black tracking-widest text-zinc-100 drop-shadow-md">NOVO DE NOVO</span>
         </div>
@@ -204,7 +211,6 @@ export default function Home() {
 
       <main className="flex flex-col xl:flex-row items-center justify-center p-6 md:p-12 gap-12 max-w-7xl mx-auto min-h-[calc(100vh-100px)]">
         
-        {/* Lado Esquerdo - Hero Section */}
         <div className="w-full xl:w-1/2 flex flex-col gap-8 relative z-10">
           <div className="inline-block px-4 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-500 text-xs font-black tracking-widest w-fit shadow-[0_0_20px_rgba(245,158,11,0.1)]">
             EXCELÊNCIA EM BARBEARIA
@@ -236,7 +242,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Lado Direito - Formulário de Agendamento */}
         <div className="w-full xl:w-1/2 max-w-lg relative z-10">
           <div className="bg-zinc-900/40 backdrop-blur-3xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden">
             
@@ -247,49 +252,53 @@ export default function Home() {
               Agende seu Horário
             </h2>
 
-            {/* SEÇÃO 1: CORTES E BARBA */}
             <div className="mb-6 relative z-10">
               <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
                 <Scissors size={16} className="text-amber-500" /> 1. Cortes e Barba
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {servicos.filter(s => s.categoria === 'Básico').map((servico) => (
-                  <button
-                    key={servico.nome}
-                    onClick={() => setAgendamento({ ...agendamento, servico: servico.nome })}
-                    className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
-                      agendamento.servico === servico.nome
-                        ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                        : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
-                    }`}
-                  >
-                    <span className="text-center truncate w-full px-1">{servico.nome}</span>
-                    <span className={agendamento.servico === servico.nome ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
-                  </button>
-                ))}
+                {servicos.filter(s => s.categoria === 'Básico').map((servico) => {
+                  const isSelected = agendamento.servicosSelecionados.includes(servico.nome);
+                  return (
+                    <button
+                      key={servico.nome}
+                      onClick={() => toggleServico(servico.nome)}
+                      className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
+                        isSelected
+                          ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                          : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                      }`}
+                    >
+                      <span className="text-center truncate w-full px-1">{servico.nome}</span>
+                      <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* SEÇÃO 2: QUÍMICAS */}
             <div className="mb-8 relative z-10">
               <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
                 <Droplet size={16} className="text-amber-500" /> 2. Químicas e Tratamentos
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {servicos.filter(s => s.categoria === 'Químicas').map((servico) => (
-                  <button
-                    key={servico.nome}
-                    onClick={() => setAgendamento({ ...agendamento, servico: servico.nome })}
-                    className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
-                      agendamento.servico === servico.nome
-                        ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                        : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
-                    }`}
-                  >
-                    <span className="text-center truncate w-full px-1">{servico.nome}</span>
-                    <span className={agendamento.servico === servico.nome ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
-                  </button>
-                ))}
+                {servicos.filter(s => s.categoria === 'Químicas').map((servico) => {
+                  const isSelected = agendamento.servicosSelecionados.includes(servico.nome);
+                  return (
+                    <button
+                      key={servico.nome}
+                      onClick={() => toggleServico(servico.nome)}
+                      className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
+                        isSelected
+                          ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                          : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                      }`}
+                    >
+                      <span className="text-center truncate w-full px-1">{servico.nome}</span>
+                      <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

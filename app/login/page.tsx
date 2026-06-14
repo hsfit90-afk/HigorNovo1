@@ -3,108 +3,158 @@
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Scissors } from 'lucide-react';
+import { Scissors, Eye, EyeOff } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function Login() {
+  const router = useRouter();
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const router = useRouter();
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  // NOVA FUNÇÃO DO OLHINHO:
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setError('');
+    setSuccess('');
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    if (isLogin) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setMessage('Email ou senha incorretos.');
-    } else {
-      // REGRA DO CHEFE: Se o email for o seu, manda pro Painel do Admin!
-      if (email === 'souza.higor@gmail.com') {
-        router.push('/admin');
+      if (error) {
+        setError('Email ou senha incorretos.');
       } else {
         router.push('/');
+      }
+    } else {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess('Conta criada com sucesso! Você já pode fazer o login.');
+        setIsLogin(true); // Retorna para a tela de login
       }
     }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 text-zinc-50 relative overflow-hidden">
       
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-amber-600/20 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
+      {/* Luzes de fundo iguais ao do site principal */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-zinc-900/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-8 shadow-2xl relative z-10">
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 rounded-full bg-zinc-950 border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-            <Scissors size={28} className="text-amber-500" />
+      <div className="w-full max-w-md bg-zinc-900/40 backdrop-blur-3xl p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative z-10">
+        <div className="flex justify-center mb-8">
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+            <Scissors className="text-amber-500" size={32} />
           </div>
         </div>
 
-        <h1 className="text-3xl font-black text-white text-center mb-2">Bem-vindo de volta</h1>
-        <p className="text-zinc-400 text-center text-sm mb-8">Faça login para continuar</p>
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-black mb-2">{isLogin ? 'Bem-vindo de volta' : 'Criar Conta'}</h1>
+          <p className="text-zinc-400 text-sm font-medium">
+            {isLogin ? 'Faça login para continuar' : 'Cadastre-se para agendar seu horário'}
+          </p>
+        </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-400 tracking-widest uppercase">E-mail</label>
+        <form onSubmit={handleAuth} className="flex flex-col gap-6">
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">E-MAIL</label>
             <input
               type="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-zinc-100 focus:outline-none focus:border-amber-500/50 transition-colors"
-              placeholder="seu@email.com"
-              required
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-zinc-400 tracking-widest uppercase">Senha</label>
-              <Link href="/recuperar-senha" className="text-xs text-amber-500 hover:text-amber-400 font-semibold transition-colors">
-                Esqueceu a senha?
-              </Link>
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-zinc-100 focus:outline-none focus:border-amber-500/50 transition-colors"
-              placeholder="••••••••"
-              required
+              className="w-full bg-zinc-950/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all"
+              placeholder="exemplo@gmail.com"
             />
           </div>
 
-          {message && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-semibold text-center">
-              {message}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">SENHA</label>
+              {isLogin && (
+                <button type="button" className="text-xs font-bold text-amber-500 hover:text-amber-400">Esqueceu a senha?</button>
+              )}
+            </div>
+            
+            {/* NOVO CAMPO DE SENHA COM OLHINHO */}
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-zinc-950/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all pr-14"
+                placeholder="••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-amber-500 transition-colors p-1"
+                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl text-sm font-semibold text-center">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-500/10 border border-green-500/20 text-green-500 p-4 rounded-xl text-sm font-semibold text-center">
+              {success}
             </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-lg py-4 rounded-xl mt-6 transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] disabled:opacity-50"
+            className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black rounded-xl text-lg transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] disabled:opacity-50 mt-2"
           >
-            {loading ? 'Entrando...' : 'Fazer Login'}
+            {loading ? 'Aguarde...' : (isLogin ? 'Fazer Login' : 'Cadastrar')}
           </button>
         </form>
 
-        <div className="mt-6 text-center text-zinc-400 text-sm">
-          Ainda não tem conta?{' '}
-          <Link href="/cadastro" className="text-amber-500 hover:underline font-semibold">
-            Criar conta
-          </Link>
+        <div className="mt-8 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError('');
+              setSuccess('');
+              setEmail('');
+              setPassword('');
+              setShowPassword(false);
+            }}
+            className="text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+          >
+            {isLogin ? (
+              <>Ainda não tem conta? <span className="text-amber-500 font-bold">Criar conta</span></>
+            ) : (
+              <>Já tem uma conta? <span className="text-amber-500 font-bold">Fazer login</span></>
+            )}
+          </button>
         </div>
       </div>
     </div>

@@ -81,7 +81,7 @@ export default function Home() {
 
       const slots: string[] = [];
       for (let h = startHour; h < endHour; h++) {
-        if (h === 13 || h === 14) continue; 
+        // Agora todos os horários entram na lista, inclusive o almoço (vamos bloqueá-los visualmente depois)
         slots.push(`${h.toString().padStart(2, '0')}:00`);
         slots.push(`${h.toString().padStart(2, '0')}:30`);
       }
@@ -102,7 +102,6 @@ export default function Home() {
     }
   };
 
-  // FUNÇÃO QUE PERMITE MARCAR E DESMARCAR VÁRIOS SERVIÇOS
   const toggleServico = (nome: string) => {
     setAgendamento(prev => {
       const jaSelecionado = prev.servicosSelecionados.includes(nome);
@@ -131,7 +130,6 @@ export default function Home() {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
 
-    // JUNTA OS MÚLTIPLOS SERVIÇOS COM UM "+"
     const servicosFormatados = agendamento.servicosSelecionados.join(' + ');
 
     const { error } = await supabase
@@ -149,6 +147,14 @@ export default function Home() {
       ]);
 
     if (!error) {
+      // MÁGICA DO WHATSAPP AQUI!
+      const numeroBarbeiro = "5511947349200"; // Seu número
+      const dataFormatada = agendamento.data.split('-').reverse().join('/');
+      
+      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}`;
+      
+      window.open(`https://wa.me/${numeroBarbeiro}?text=${texto}`, '_blank');
+
       setSucesso(true);
       setTimeout(() => {
         setSucesso(false);
@@ -354,6 +360,25 @@ export default function Home() {
                     horariosDisponiveis.length > 0 ? (
                       horariosDisponiveis.map((hora) => {
                         const isOcupado = horariosOcupados.includes(hora);
+                        
+                        // IDENTIFICA SE O HORÁRIO É DA HORA DO ALMOÇO
+                        const isAlmoco = hora.startsWith('13:') || hora.startsWith('14:');
+
+                        // RENDERIZA O BOTÃO DE ALMOÇO BLOQUEADO E RISCADO
+                        if (isAlmoco) {
+                          return (
+                            <button
+                              key={hora}
+                              disabled
+                              className="p-1 rounded-xl text-sm font-bold border transition-all bg-zinc-900/20 text-zinc-600 border-zinc-800/50 cursor-not-allowed flex flex-col items-center justify-center gap-0.5"
+                            >
+                              <span className="line-through">{hora}</span>
+                              <span className="text-[10px] uppercase text-amber-500/50">Almoço</span>
+                            </button>
+                          );
+                        }
+
+                        // RENDERIZA OS HORÁRIOS NORMAIS
                         return (
                           <button
                             key={hora}

@@ -1,129 +1,177 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Calendar, Clock, Scissors, User, LogOut, ChevronDown, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
-import { createClient } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const HORARIOS_PADRAO = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+// SEUS SERVIÇOS E PREÇOS EXATOS
+const servicos = [
+  { nome: 'Pezinho', preco: 'R$ 15', categoria: 'Básico' },
+  { nome: 'Sobrancelha', preco: 'R$ 10', categoria: 'Básico' },
+  { nome: 'Bigode', preco: 'R$ 10', categoria: 'Básico' },
+  { nome: 'Sobrancelha e Bigode', preco: 'R$ 15', categoria: 'Básico' },
+  { nome: 'Barba', preco: 'R$ 25', categoria: 'Básico' },
+  { nome: 'Cabelo', preco: 'R$ 35', categoria: 'Básico' },
+  { nome: 'Cabelo e Barba', preco: 'R$ 50', categoria: 'Básico' },
+  { nome: 'Platinado', preco: 'R$ 100', categoria: 'Químicas' },
+  { nome: 'Luzes', preco: 'R$ 70', categoria: 'Químicas' },
+  { nome: 'Alisante', preco: 'R$ 40', categoria: 'Químicas' },
+  { nome: 'Hidratação', preco: 'R$ 30', categoria: 'Químicas' },
+  { nome: 'Pigmentação', preco: 'R$ 20', categoria: 'Químicas' },
+];
 
 export default function Home() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<any>(null);
-
-  const [servico, setServico] = useState('');
-  const [profissional, setProfissional] = useState('Qualquer profissional');
-  const [data, setData] = useState('');
-  const [hora, setHora] = useState('');
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  const [agendamento, setAgendamento] = useState({
+    servico: '',
+    data: '',
+    hora: '',
+    cliente_nome: '',
+    cliente_telefone: ''
+  });
   
   const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]);
+  const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
-  const [mensagem, setMensagem] = useState('');
+  const [sucesso, setSucesso] = useState(false);
 
+  // Verifica o Login
   useEffect(() => {
-    const checkUser = async () => {
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-      } else {
-        setSession(session);
-        setLoading(false);
+      if (session) {
+        setIsUserLoggedIn(true);
+        if (session.user.email === 'souza.higor@gmail.com') {
+          setIsAdmin(true);
+        }
       }
     };
-    checkUser();
-  }, [router]);
+    checkSession();
+  }, []);
 
+  // SISTEMA INTELIGENTE DE HORÁRIOS (Almoço, Dias da Semana, etc)
   useEffect(() => {
-    const buscarHorarios = async () => {
-      if (!data) return; 
+    if (agendamento.data) {
+      buscarHorariosOcupados(agendamento.data);
       
-      const { data: agendamentos, error } = await supabase
-        .from('agendamentos')
-        .select('hora')
-        .eq('data', data)
-        .eq('status', 'Confirmado');
-      
-      if (!error && agendamentos) {
-        setHorariosOcupados(agendamentos.map(a => a.hora));
-      }
-    };
-    
-    buscarHorarios();
-    setHora(''); 
-  }, [data]); 
+      const [ano, mes, dia] = agendamento.data.split('-');
+      const date = new Date(Number(ano), Number(mes) - 1, Number(dia));
+      const dayOfWeek = date.getDay(); // 0 = Domingo, 1 = Segunda...
 
-  const handleSair = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+      if (dayOfWeek === 0) {
+        setHorariosDisponiveis([]); // Domingo fechado
+        return;
+      }
+
+      let startHour = 9;
+      let endHour = 21;
+
+      // REGRAS DE HORÁRIOS DOS DIAS
+      if (dayOfWeek === 1) { startHour = 15; endHour = 21; } // Segunda (15h às 21h)
+      else if (dayOfWeek === 3) { startHour = 9; endHour = 19; } // Quarta (09h às 19h)
+      else if (dayOfWeek === 4) { startHour = 9; endHour = 18; } // Quinta (09h às 18h)
+      // Terça, Sexta e Sábado usam o padrão (09h às 21h)
+
+      const slots: string[] = [];
+      for (let h = startHour; h < endHour; h++) {
+        // PAUSA PARA ALMOÇO: Para as 13h, Volta as 15h. (Ignora 13h e 14h inteiros)
+        if (h === 13 || h === 14) continue; 
+        
+        slots.push(`${h.toString().padStart(2, '0')}:00`);
+        slots.push(`${h.toString().padStart(2, '0')}:30`);
+      }
+      setHorariosDisponiveis(slots);
+      setAgendamento(prev => ({ ...prev, hora: '' })); // Reseta a hora ao trocar o dia
+    }
+  }, [agendamento.data]);
+
+  const buscarHorariosOcupados = async (data: string) => {
+    const { data: agendamentos, error } = await supabase
+      .from('agendamentos')
+      .select('hora')
+      .eq('data', data)
+      .eq('status', 'Confirmado');
+    
+    if (agendamentos) {
+      setHorariosOcupados(agendamentos.map(a => a.hora));
+    }
   };
 
   const handleAgendar = async () => {
-    if (!servico || !data || !hora) {
-      setMensagem('Por favor, escolha o serviço, a data e a hora!');
+    if (!isUserLoggedIn) {
+      alert("Por favor, faça login ou cadastre-se para agendar seu horário.");
+      router.push('/login');
+      return;
+    }
+
+    if (!agendamento.servico || !agendamento.data || !agendamento.hora || !agendamento.cliente_nome || !agendamento.cliente_telefone) {
+      alert('Por favor, preencha todos os campos!');
       return;
     }
 
     setLoadingAgendamento(true);
-    setMensagem('');
 
-    const { error } = await supabase.from('agendamentos').insert({
-      user_id: session?.user?.id,
-      cliente_nome: session?.user?.email, 
-      servico,
-      profissional,
-      data,
-      hora,
-      status: 'Confirmado'
-    });
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
 
-    if (error) {
-      setMensagem('Erro ao agendar. Tente novamente.');
+    const { error } = await supabase
+      .from('agendamentos')
+      .insert([
+        { 
+          user_id: userId,
+          servico: agendamento.servico, 
+          data: agendamento.data, 
+          hora: agendamento.hora,
+          cliente_nome: agendamento.cliente_nome,
+          cliente_telefone: agendamento.cliente_telefone,
+          status: 'Confirmado'
+        }
+      ]);
+
+    if (!error) {
+      setSucesso(true);
+      setTimeout(() => {
+        setSucesso(false);
+        setAgendamento({
+          servico: '',
+          data: '',
+          hora: '',
+          cliente_nome: '',
+          cliente_telefone: ''
+        });
+        buscarHorariosOcupados(agendamento.data);
+      }, 3000);
     } else {
-      setMensagem('Sucesso! Redirecionando para o WhatsApp...');
-      setHorariosOcupados([...horariosOcupados, hora]);
-      
-      const partesData = data.split('-');
-      const dataBr = `${partesData[2]}/${partesData[1]}/${partesData[0]}`; 
-      
-      const texto = `Olá! Acabei de agendar pelo aplicativo:%0A%0A✂️ *Serviço:* ${servico}%0A👤 *Profissional:* ${profissional}%0A📅 *Data:* ${dataBr}%0A⏰ *Horário:* ${hora}%0A%0ATe aguardo!`;
-      
-      const numeroBarbeiro = '5511947349200';
-      
-      window.open(`https://wa.me/${numeroBarbeiro}?text=${texto}`, '_blank');
-      
-      setHora(''); 
+      alert('Erro ao agendar. Tente novamente.');
     }
     setLoadingAgendamento(false);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-amber-500 font-bold tracking-widest uppercase">Carregando...</p>
-      </div>
-    );
-  }
-
-  const horariosLivres = HORARIOS_PADRAO.filter(h => !horariosOcupados.includes(h));
-
-  // LIBERA O BOTÃO DO ADMIN SE O EMAIL FOR O DO HIGOR
-  const isAdmin = session?.user?.email === 'souza.higor@gmail.com';
+  const handleSair = async () => {
+    await supabase.auth.signOut();
+    setIsUserLoggedIn(false);
+    setIsAdmin(false);
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
       
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-amber-600/20 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-600/10 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
+      {/* Círculos de luz no fundo */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
 
+      {/* Navegação Topo */}
       <nav className="flex justify-between items-center p-6 md:px-12 bg-zinc-950/40 backdrop-blur-2xl sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full overflow-hidden border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
@@ -133,172 +181,227 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-3">
-          {/* BOTÃO VIP DO HIGOR (OS CLIENTES NÃO VÃO VER) */}
           {isAdmin && (
-            <button 
-              onClick={() => router.push('/admin')} 
-              className="hidden md:flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-6 py-2.5 rounded-full font-bold hover:bg-amber-500 hover:text-zinc-950 transition-all duration-300 backdrop-blur-md"
-            >
+            <button onClick={() => router.push('/admin')} className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 rounded-full hover:bg-amber-500 hover:text-zinc-950 font-bold transition-all border border-amber-500/30">
               <ShieldCheck size={16} />
-              <span className="text-sm">Painel do Admin</span>
+              <span className="text-sm hidden sm:inline">Painel do Admin</span>
             </button>
           )}
 
-          <button onClick={handleSair} className="flex items-center gap-2 bg-white/5 border border-white/10 text-zinc-300 px-6 py-2.5 rounded-full font-bold hover:bg-white/10 hover:text-white transition-all duration-300 backdrop-blur-md">
-            <LogOut size={16} />
-            <span className="text-sm">Sair</span>
-          </button>
+          {isUserLoggedIn ? (
+            <button onClick={handleSair} className="flex items-center gap-2 px-4 py-2 bg-white/5 text-zinc-300 rounded-full hover:bg-red-500 hover:text-white transition-all font-bold">
+              <LogOut size={16} />
+              <span className="text-sm hidden sm:inline">Sair</span>
+            </button>
+          ) : (
+            <button onClick={() => router.push('/login')} className="flex items-center gap-2 px-6 py-2 bg-amber-500 text-zinc-950 rounded-full hover:bg-amber-400 font-bold transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+              <User size={16} />
+              <span className="text-sm">Fazer Login</span>
+            </button>
+          )}
         </div>
       </nav>
 
-      <main className="flex flex-col lg:flex-row items-center justify-between p-6 md:p-12 gap-16 max-w-7xl mx-auto mt-4 relative z-10">
+      <main className="flex flex-col xl:flex-row items-center justify-center p-6 md:p-12 gap-12 max-w-7xl mx-auto min-h-[calc(100vh-100px)]">
         
-        <div className="flex-1 space-y-10">
-          <div className="space-y-4">
-            <div className="inline-block px-4 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-500 text-xs font-bold tracking-widest uppercase mb-2 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-              Excelência em Barbearia
-            </div>
-            <h1 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tight">
-              O seu estilo, <br />
-              <span className="text-amber-500 drop-shadow-[0_0_30px_rgba(245,158,11,0.3)]">nossa obra de arte.</span>
-            </h1>
-            <p className="text-lg text-zinc-400 max-w-md leading-relaxed font-light">
-              Uma experiência que combina a tradição clássica com as tendências modernas. Agende agora e eleve o seu visual com os melhores profissionais.
-            </p>
+        {/* Lado Esquerdo - Hero Section */}
+        <div className="w-full xl:w-1/2 flex flex-col gap-8 relative z-10">
+          <div className="inline-block px-4 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-500 text-xs font-black tracking-widest w-fit shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+            EXCELÊNCIA EM BARBEARIA
           </div>
+          
+          <h1 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tight">
+            O seu estilo, <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-amber-300 drop-shadow-sm">
+              nossa obra de arte.
+            </span>
+          </h1>
+          
+          <p className="text-zinc-400 text-lg md:text-xl max-w-md leading-relaxed font-medium">
+            Uma experiência que combina a tradição clássica com as tendências modernas. Agende agora e eleve o seu visual com os melhores profissionais.
+          </p>
 
-          <div className="relative h-[300px] md:h-[450px] w-full max-w-xl rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group">
+          <div className="relative h-[300px] md:h-[450px] w-full max-w-xl rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group mt-4">
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent z-10 opacity-60"></div>
             <Image src={donoImg} alt="Barbeiro" fill className="object-cover transition-transform duration-1000 group-hover:scale-110" />
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent opacity-80"></div>
-            <div className="absolute bottom-6 left-6 flex gap-3">
-              <div className="bg-zinc-950/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-2 shadow-xl">
-                <Scissors size={16} className="text-amber-500" />
-                <span className="text-sm font-bold text-zinc-100">Cortes Premium</span>
+            <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.5)]">
+                <Scissors className="text-zinc-950" />
+              </div>
+              <div>
+                <p className="text-white font-bold text-lg leading-tight">Cortes Premium</p>
+                <p className="text-amber-500 text-sm font-semibold">Técnicas Exclusivas</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="w-full max-w-md bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 md:p-10 shadow-[0_0_50px_rgba(0,0,0,0.4)] relative">
-          <div className="absolute -inset-0.5 bg-gradient-to-br from-amber-500/20 to-transparent rounded-[2.5rem] blur-xl opacity-50 -z-10"></div>
-
-          <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
-            <div className="w-1.5 h-8 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
-            Agende seu Horário
-          </h2>
-
-          <div className="space-y-7">
+        {/* Lado Direito - Formulário de Agendamento */}
+        <div className="w-full xl:w-1/2 max-w-lg relative z-10">
+          <div className="bg-zinc-900/40 backdrop-blur-3xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden">
             
-            <div className="space-y-4">
-              <label className="text-xs font-bold text-zinc-400 tracking-widest uppercase flex items-center gap-2">
-                <Scissors size={14} className="text-amber-500" /> 1. Serviço
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[50px]"></div>
+
+            <h2 className="text-3xl font-black mb-8 flex items-center gap-3 relative z-10">
+              <div className="w-2 h-8 bg-amber-500 rounded-full"></div>
+              Agende seu Horário
+            </h2>
+
+            {/* SEÇÃO 1: CORTES E BARBA */}
+            <div className="mb-6 relative z-10">
+              <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                <Scissors size={16} className="text-amber-500" /> 1. Cortes e Barba
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                {['Corte Social', 'Barba', 'Corte + Barba', 'Sobrancelha'].map((op) => (
-                  <button 
-                    key={op}
-                    onClick={() => setServico(op)}
-                    className={`p-3.5 rounded-2xl border text-sm font-semibold text-center transition-all duration-300 ${
-                      servico === op 
-                      ? 'border-amber-500 bg-amber-500/10 text-amber-500' 
-                      : 'border-white/5 bg-black/30 text-zinc-400 hover:border-white/20'
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {servicos.filter(s => s.categoria === 'Básico').map((servico) => (
+                  <button
+                    key={servico.nome}
+                    onClick={() => setAgendamento({ ...agendamento, servico: servico.nome })}
+                    className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
+                      agendamento.servico === servico.nome
+                        ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                        : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
                     }`}
                   >
-                    {op}
+                    <span className="text-center truncate w-full px-1">{servico.nome}</span>
+                    <span className={agendamento.servico === servico.nome ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-4">
-                <label className="text-xs font-bold text-zinc-400 tracking-widest uppercase flex items-center gap-2">
-                  <User size={14} className="text-amber-500" /> Profissional
-                </label>
-                <div className="relative">
-                  <select 
-                    value={profissional}
-                    onChange={(e) => setProfissional(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-zinc-100 focus:outline-none focus:border-amber-500/50 appearance-none transition-colors cursor-pointer text-sm"
+            {/* SEÇÃO 2: QUÍMICAS */}
+            <div className="mb-8 relative z-10">
+              <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                <Droplet size={16} className="text-amber-500" /> 2. Químicas e Tratamentos
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {servicos.filter(s => s.categoria === 'Químicas').map((servico) => (
+                  <button
+                    key={servico.nome}
+                    onClick={() => setAgendamento({ ...agendamento, servico: servico.nome })}
+                    className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
+                      agendamento.servico === servico.nome
+                        ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                        : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                    }`}
                   >
-                    <option className="bg-zinc-900 text-zinc-100">Qualquer um</option>
-                    <option className="bg-zinc-900 text-zinc-100">Higor</option>
-                  </select>
-                  <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-                </div>
+                    <span className="text-center truncate w-full px-1">{servico.nome}</span>
+                    <span className={agendamento.servico === servico.nome ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
+              <div>
+                <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                  <User size={16} className="text-amber-500" /> Seu Nome
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: João Silva"
+                  value={agendamento.cliente_nome}
+                  onChange={(e) => setAgendamento({ ...agendamento, cliente_nome: e.target.value })}
+                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all font-medium"
+                />
               </div>
 
-              <div className="space-y-4">
-                <label className="text-xs font-bold text-zinc-400 tracking-widest uppercase flex items-center gap-2">
-                  <Calendar size={14} className="text-amber-500" /> Data
+              <div>
+                <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                  <Phone size={16} className="text-amber-500" /> WhatsApp
                 </label>
-                <input 
-                  type="date" 
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]} 
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-zinc-100 focus:outline-none focus:border-amber-500/50 transition-colors [color-scheme:dark] text-sm" 
+                <input
+                  type="tel"
+                  placeholder="(00) 00000-0000"
+                  value={agendamento.cliente_telefone}
+                  onChange={(e) => setAgendamento({ ...agendamento, cliente_telefone: e.target.value })}
+                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all font-medium"
                 />
               </div>
             </div>
 
-            {data && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <label className="text-xs font-bold text-zinc-400 tracking-widest uppercase flex items-center gap-2">
-                  <Clock size={14} className="text-amber-500" /> Horários Disponíveis
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
+              <div>
+                <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                  <Calendar size={16} className="text-amber-500" /> Data
                 </label>
-                
-                {horariosLivres.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {horariosLivres.map((h) => (
-                      <button 
-                        key={h}
-                        onClick={() => setHora(h)}
-                        className={`py-2 rounded-xl border text-sm font-bold transition-all ${
-                          hora === h 
-                          ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]' 
-                          : 'bg-black/30 text-zinc-300 border-white/5 hover:border-white/20 hover:bg-white/5'
-                        }`}
-                      >
-                        {h}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center font-semibold">
-                    Esgotado para este dia!
-                  </div>
-                )}
+                <input
+                  type="date"
+                  value={agendamento.data}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setAgendamento({ ...agendamento, data: e.target.value })}
+                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all font-medium color-scheme-dark"
+                  style={{ colorScheme: 'dark' }}
+                />
               </div>
-            )}
 
-            {mensagem && (
-              <div className={`p-4 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 ${
-                mensagem.includes('Sucesso') 
-                ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
-                : 'bg-red-500/10 text-red-500 border border-red-500/20'
-              }`}>
-                {mensagem.includes('Sucesso') && <CheckCircle2 size={18} />}
-                {mensagem}
+              <div>
+                <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                  <Clock size={16} className="text-amber-500" /> Horário
+                </label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {agendamento.data ? (
+                    horariosDisponiveis.length > 0 ? (
+                      horariosDisponiveis.map((hora) => {
+                        const isOcupado = horariosOcupados.includes(hora);
+                        return (
+                          <button
+                            key={hora}
+                            disabled={isOcupado}
+                            onClick={() => setAgendamento({ ...agendamento, hora })}
+                            className={`p-2 rounded-xl text-sm font-bold border transition-all ${
+                              isOcupado
+                                ? 'bg-red-500/10 text-red-500/50 border-red-500/20 cursor-not-allowed'
+                                : agendamento.hora === hora
+                                ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                                : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                            }`}
+                          >
+                            {hora}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="col-span-2 text-center py-4 text-zinc-500 text-sm font-bold bg-zinc-900/30 rounded-xl border border-zinc-800">
+                        Fechado neste dia.
+                      </div>
+                    )
+                  ) : (
+                    <div className="col-span-2 text-center py-4 text-zinc-500 text-sm bg-zinc-900/30 rounded-xl border border-zinc-800 flex items-center justify-center">
+                      Escolha uma data
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
 
-            <button 
+            <button
               onClick={handleAgendar}
-              disabled={loadingAgendamento || !data || !hora || !servico}
-              className="w-full relative overflow-hidden group bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-lg py-5 rounded-2xl mt-6 transition-all duration-300 shadow-[0_0_30px_rgba(245,158,11,0.2)] hover:shadow-[0_0_40px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loadingAgendamento || sucesso}
+              className={`w-full py-5 rounded-2xl font-black text-lg transition-all relative overflow-hidden group ${
+                sucesso ? 'bg-green-500 text-white shadow-[0_0_30px_rgba(34,197,94,0.4)]' : 'bg-amber-500 text-zinc-950 hover:bg-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.3)] hover:shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:-translate-y-1'
+              }`}
             >
-              <div className="absolute inset-0 w-full h-full bg-white/20 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] skew-x-12"></div>
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                {loadingAgendamento ? 'Salvando...' : 'Confirmar Agendamento'}
-              </span>
+              {sucesso ? (
+                <span className="flex items-center justify-center gap-2">
+                  <ShieldCheck size={24} /> Agendado com Sucesso!
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  {loadingAgendamento ? 'Salvando...' : 'Confirmar Agendamento'}
+                </span>
+              )}
             </button>
           </div>
         </div>
       </main>
       
       <style dangerouslySetInnerHTML={{__html: `
-        @keyframes shimmer { 100% { transform: translateX(200%); } }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(245,158,11,0.5); }
       `}} />
     </div>
   );

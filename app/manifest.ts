@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next'
  
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Barbearia Premium',
-    short_name: 'Barbearia',
+    name: 'Barbearia Novo de Novo',
+    short_name: 'Novo de Novo',
     description: 'Agende seu horário com os melhores profissionais.',
     start_url: '/',
     display: 'standalone',

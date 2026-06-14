@@ -51,7 +51,8 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsUserLoggedIn(true);
-        if (session.user.email === 'souza.higor@gmail.com') {
+        // === ATUALIZAÇÃO: Os dois e-mails que são administradores ===
+        if (session.user.email === 'souza.higor@gmail.com' || session.user.email === 'pietro.radical.black@gmail.com') {
           setIsAdmin(true);
         }
       }
@@ -81,7 +82,6 @@ export default function Home() {
 
       const slots: string[] = [];
       for (let h = startHour; h < endHour; h++) {
-        // Agora todos os horários entram na lista, inclusive o almoço (vamos bloqueá-los visualmente depois)
         slots.push(`${h.toString().padStart(2, '0')}:00`);
         slots.push(`${h.toString().padStart(2, '0')}:30`);
       }
@@ -147,8 +147,8 @@ export default function Home() {
       ]);
 
     if (!error) {
-      // MÁGICA DO WHATSAPP AQUI!
-      const numeroBarbeiro = "5511947349200"; // Seu número
+      // === ATUALIZAÇÃO: SEU NOVO NÚMERO DE WHATSAPP ===
+      const numeroBarbeiro = "5511953676910";
       const dataFormatada = agendamento.data.split('-').reverse().join('/');
       
       const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}`;
@@ -361,10 +361,8 @@ export default function Home() {
                       horariosDisponiveis.map((hora) => {
                         const isOcupado = horariosOcupados.includes(hora);
                         
-                        // IDENTIFICA SE O HORÁRIO É DA HORA DO ALMOÇO
                         const isAlmoco = hora.startsWith('13:') || hora.startsWith('14:');
 
-                        // RENDERIZA O BOTÃO DE ALMOÇO BLOQUEADO E RISCADO
                         if (isAlmoco) {
                           return (
                             <button
@@ -378,7 +376,6 @@ export default function Home() {
                           );
                         }
 
-                        // RENDERIZA OS HORÁRIOS NORMAIS
                         return (
                           <button
                             key={hora}

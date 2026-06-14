@@ -1,32 +1,40 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { LogOut, Calendar, Clock, User, Scissors, Trash2 } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, Trash2, Home } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export default function AdminDashboard() {
+export default function AdminPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
   const [agendamentos, setAgendamentos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      // === ATUALIZAÇÃO: LIBERANDO A ENTRADA DOS DOIS DONOS ===
+      const adminEmails = ['souza.higor@gmail.com', 'pietro.radical.black@gmail.com'];
+      
+      if (!session || !session.user.email || !adminEmails.includes(session.user.email)) {
+        router.push('/');
+        return;
+      }
       buscarAgendamentos();
     };
     checkUser();
-  }, [router]);
+  }, []);
 
   const buscarAgendamentos = async () => {
-    const { data, error } = await supabase
+    setLoading(true);
+    const { data } = await supabase
       .from('agendamentos')
       .select('*')
-      .eq('status', 'Confirmado')
       .order('data', { ascending: true })
       .order('hora', { ascending: true });
       
@@ -36,28 +44,12 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  const handleSair = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-  };
-
-  const handleCancelar = async (id: string) => {
-    const confirmar = confirm("Tem certeza que deseja cancelar e liberar este horário para outros clientes?");
-    if (!confirmar) return;
-
-    const { error } = await supabase.from('agendamentos').update({ status: 'Cancelado' }).eq('id', id);
-
-    if (!error) {
-      setAgendamentos(agendamentos.filter(a => a.id !== id));
-      alert("Horário cancelado e liberado com sucesso!");
-    } else {
-      alert("Erro ao cancelar o horário.");
+  const deletarAgendamento = async (id: number) => {
+    if (window.confirm('Tem certeza que deseja cancelar e apagar este agendamento?')) {
+      await supabase.from('agendamentos').delete().eq('id', id);
+      buscarAgendamentos(); // atualiza a lista automaticamente
     }
   };
-
-  if (loading) {
-    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-amber-500 font-bold">Carregando painel...</div>;
-  }
 
   const formatarData = (dataStr: string) => {
     if (!dataStr) return '';
@@ -67,44 +59,98 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans p-6 md:p-12">
-      <header className="flex flex-col md:flex-row items-center justify-between gap-6 mb-12 bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800/60 shadow-xl">
-        <div>
-          <h1 className="text-3xl font-bold text-amber-500">Painel do Administrador</h1>
-          <p className="text-zinc-400 mt-1">Controle seus agendamentos e clientes em tempo real.</p>
+    <div className="min-h-screen bg-zinc-950 text-zinc-50 p-6 md:p-12 font-sans selection:bg-amber-500 selection:text-zinc-950">
+      
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-white flex items-center gap-3">
+              <div className="w-2 h-8 bg-amber-500 rounded-full"></div>
+              Painel de Agendamentos
+            </h1>
+            <p className="text-zinc-400 mt-2">Área restrita para administradores da barbearia.</p>
+          </div>
+          
+          <button 
+            onClick={() => router.push('/')}
+            className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-xl text-zinc-300 hover:text-amber-500 hover:border-amber-500/50 transition-all font-semibold"
+          >
+            <Home size={18} />
+            Voltar para o Site
+          </button>
         </div>
-        <button onClick={handleSair} className="flex items-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-xl font-bold transition-all">
-          <LogOut size={20} /> Sair da Conta
-        </button>
-      </header>
 
-      <div className="bg-zinc-900/30 rounded-3xl border border-zinc-800/60 p-6 md:p-8 shadow-2xl">
-        <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Calendar className="text-amber-500" /> Agendamentos Confirmados</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[700px]">
-            <thead>
-              <tr className="border-b border-zinc-800 text-zinc-400">
-                <th className="p-4 font-semibold">Cliente</th>
-                <th className="p-4 font-semibold">Serviço</th>
-                <th className="p-4 font-semibold">Data e Hora</th>
-                <th className="p-4 font-semibold">Status</th>
-                <th className="p-4 font-semibold text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agendamentos.map((agendamento) => (
-                <tr key={agendamento.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-all">
-                  <td className="p-4"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500"><User size={18} /></div><span className="font-semibold">{agendamento.cliente_nome || 'Cliente'}</span></div></td>
-                  <td className="p-4 text-zinc-300"><div className="flex items-center gap-2"><Scissors size={16} className="text-zinc-500" /> {agendamento.servico}</div></td>
-                  <td className="p-4 text-zinc-300"><div className="flex items-center gap-2 text-amber-500 font-bold"><Calendar size={16} /> {formatarData(agendamento.data)} <Clock size={16} className="ml-2" /> {agendamento.hora}</div></td>
-                  <td className="p-4"><span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500/10 text-green-500 border border-green-500/20">{agendamento.status}</span></td>
-                  <td className="p-4 text-center"><button onClick={() => handleCancelar(agendamento.id)} className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18} /></button></td>
+        <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-1 overflow-hidden shadow-2xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-zinc-900/80 text-zinc-400 text-sm uppercase tracking-wider border-b border-zinc-800">
+                  <th className="p-4 font-bold rounded-tl-2xl">Data</th>
+                  <th className="p-4 font-bold">Hora</th>
+                  <th className="p-4 font-bold">Cliente</th>
+                  <th className="p-4 font-bold">WhatsApp</th>
+                  <th className="p-4 font-bold">Serviço(s)</th>
+                  <th className="p-4 font-bold text-center rounded-tr-2xl">Ação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/50">
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-zinc-500 font-bold">Carregando agenda...</td>
+                  </tr>
+                ) : agendamentos.map((agendamento) => (
+                  <tr key={agendamento.id} className="hover:bg-zinc-800/20 transition-colors group">
+                    <td className="p-4">
+                      <div className="flex items-center gap-2 text-zinc-300 font-semibold whitespace-nowrap">
+                        <Calendar size={16} className="text-amber-500/70" /> 
+                        {formatarData(agendamento.data)}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2 text-zinc-300 font-bold bg-zinc-900/50 w-fit px-3 py-1 rounded-lg border border-zinc-800">
+                        <Clock size={16} className="text-amber-500" /> 
+                        {agendamento.hora}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2 text-white font-semibold">
+                        <User size={16} className="text-zinc-500" /> 
+                        {agendamento.cliente_nome || 'Cliente não informou o nome'}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2 text-zinc-400 whitespace-nowrap">
+                        <Phone size={16} className="text-zinc-500" /> 
+                        {agendamento.cliente_telefone || '-'}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2 text-amber-500/90 font-medium max-w-xs break-words">
+                        <Scissors size={16} className="text-amber-500/50 flex-shrink-0" /> 
+                        {agendamento.servico}
+                      </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <button 
+                        onClick={() => deletarAgendamento(agendamento.id)}
+                        className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all opacity-50 group-hover:opacity-100"
+                        title="Cancelar/Excluir Agendamento"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!loading && agendamentos.length === 0 && (
+            <div className="text-center py-16 text-zinc-500 font-bold flex flex-col items-center gap-3">
+              <Calendar size={48} className="text-zinc-800" />
+              Nenhum agendamento marcado ainda.
+            </div>
+          )}
         </div>
-        {agendamentos.length === 0 && <div className="text-center py-12 text-zinc-500 font-bold">Nenhum agendamento confirmado.</div>}
       </div>
     </div>
   );

@@ -51,7 +51,6 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsUserLoggedIn(true);
-        // === ATUALIZAÇÃO: Os dois e-mails que são administradores ===
         if (session.user.email === 'souza.higor@gmail.com' || session.user.email === 'pietro.radical.black@gmail.com') {
           setIsAdmin(true);
         }
@@ -147,7 +146,6 @@ export default function Home() {
       ]);
 
     if (!error) {
-      // === ATUALIZAÇÃO: SEU NOVO NÚMERO DE WHATSAPP ===
       const numeroBarbeiro = "5511953676910";
       const dataFormatada = agendamento.data.split('-').reverse().join('/');
       
@@ -269,13 +267,13 @@ export default function Home() {
                     <button
                       key={servico.nome}
                       onClick={() => toggleServico(servico.nome)}
-                      className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
+                      className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 min-h-[64px] ${
                         isSelected
                           ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
                           : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
                       }`}
                     >
-                      <span className="text-center truncate w-full px-1">{servico.nome}</span>
+                      <span className="text-center w-full px-1 leading-tight">{servico.nome}</span>
                       <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
                     </button>
                   );
@@ -294,13 +292,13 @@ export default function Home() {
                     <button
                       key={servico.nome}
                       onClick={() => toggleServico(servico.nome)}
-                      className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 ${
+                      className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 min-h-[64px] ${
                         isSelected
                           ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
                           : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
                       }`}
                     >
-                      <span className="text-center truncate w-full px-1">{servico.nome}</span>
+                      <span className="text-center w-full px-1 leading-tight">{servico.nome}</span>
                       <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
                     </button>
                   );

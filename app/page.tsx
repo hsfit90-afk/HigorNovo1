@@ -81,8 +81,8 @@ export default function Home() {
 
       const slots: string[] = [];
       for (let h = startHour; h < endHour; h++) {
+        // === ATUALIZAÇÃO: APENAS 1 HORA POR CLIENTE (REMOVIDO OS 30 MIN) ===
         slots.push(`${h.toString().padStart(2, '0')}:00`);
-        slots.push(`${h.toString().padStart(2, '0')}:30`);
       }
       setHorariosDisponiveis(slots);
       setAgendamento(prev => ({ ...prev, hora: '' })); 

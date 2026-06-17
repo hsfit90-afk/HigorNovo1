@@ -53,16 +53,13 @@ export default function Home() {
   const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
-    // Verifica se já abriu como Aplicativo Instalado
     const isAppStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
     setIsStandalone(isAppStandalone);
 
-    // Verifica se está no celular
     const userAgent = window.navigator.userAgent.toLowerCase();
     const mobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
     setIsMobile(mobile);
 
-    // Verifica se é iPhone
     const iphone = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(iphone);
 
@@ -222,7 +219,6 @@ export default function Home() {
     setIsAdmin(false);
   };
 
-  // ==========================================
   // TELA DE BLOQUEIO (APARECE SE NÃO TIVER INSTALADO NO CELULAR)
   if (hasChecked && !isStandalone && isMobile) {
     return (
@@ -277,7 +273,6 @@ export default function Home() {
       </div>
     );
   }
-  // ==========================================
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden pb-20">
@@ -445,6 +440,12 @@ export default function Home() {
                   type="date"
                   value={agendamento.data}
                   min={new Date().toISOString().split('T')[0]}
+                  // === NOVA REGRA DE TRAVAMENTO PARA 3 MESES ===
+                  max={(() => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() + 3);
+                    return d.toISOString().split('T')[0];
+                  })()}
                   onChange={(e) => setAgendamento({ ...agendamento, data: e.target.value })}
                   className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all font-medium color-scheme-dark"
                   style={{ colorScheme: 'dark' }}

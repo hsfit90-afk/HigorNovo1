@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
@@ -12,7 +12,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// SEUS SERVIÇOS
 const servicos = [
   { nome: 'Pezinho', preco: 'R$ 15', categoria: 'Básico' },
   { nome: 'Sobrancelha', preco: 'R$ 10', categoria: 'Básico' },
@@ -45,6 +44,53 @@ export default function Home() {
   const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [sucesso, setSucesso] = useState(false);
+
+  // === SISTEMA DA BARREIRA DE INSTALAÇÃO ===
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [hasChecked, setHasChecked] = useState(false);
+
+  useEffect(() => {
+    // Verifica se já abriu como Aplicativo Instalado
+    const isAppStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    setIsStandalone(isAppStandalone);
+
+    // Verifica se está no celular
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const mobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+    setIsMobile(mobile);
+
+    // Verifica se é iPhone
+    const iphone = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(iphone);
+
+    setHasChecked(true);
+
+    if (!isAppStandalone && mobile) {
+      const handleBeforeInstallPrompt = (e: any) => {
+        e.preventDefault();
+        setDeferredPrompt(e);
+      };
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    }
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsStandalone(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      alert("Para instalar no Android, clique nos 3 pontinhos do navegador e escolha 'Instalar Aplicativo' ou 'Adicionar à Tela Inicial'.");
+    }
+  };
+  // ==========================================
 
   useEffect(() => {
     const checkSession = async () => {
@@ -81,7 +127,6 @@ export default function Home() {
 
       const slots: string[] = [];
       for (let h = startHour; h < endHour; h++) {
-        // === ATUALIZAÇÃO: APENAS 1 HORA POR CLIENTE (REMOVIDO OS 30 MIN) ===
         slots.push(`${h.toString().padStart(2, '0')}:00`);
       }
       setHorariosDisponiveis(slots);
@@ -177,8 +222,65 @@ export default function Home() {
     setIsAdmin(false);
   };
 
+  // ==========================================
+  // TELA DE BLOQUEIO (APARECE SE NÃO TIVER INSTALADO NO CELULAR)
+  if (hasChecked && !isStandalone && isMobile) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-50 flex flex-col items-center justify-center p-8 text-center selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
+        
+        <div className="w-32 h-32 bg-zinc-900 rounded-[2rem] p-2 mb-8 border border-amber-500/30 shadow-[0_0_50px_rgba(245,158,11,0.2)] relative z-10">
+            <Image src={logoImg} alt="Logo" className="w-full h-full object-cover rounded-[1.5rem]" />
+        </div>
+        
+        <h1 className="text-3xl md:text-4xl font-black mb-4 relative z-10">
+          Obrigatório <br/> <span className="text-amber-500">Instalar o App</span>
+        </h1>
+        
+        <p className="text-zinc-400 mb-10 max-w-sm text-lg font-medium relative z-10">
+          Para agendar seu horário, é necessário instalar nosso aplicativo oficial no seu celular.
+        </p>
+
+        <div className="relative z-10 w-full max-w-sm">
+          {isIOS ? (
+            <div className="bg-zinc-900/80 backdrop-blur-md p-6 rounded-3xl border border-zinc-800 text-left w-full shadow-2xl">
+              <div className="flex items-center justify-center gap-2 mb-6 bg-zinc-950 py-2 rounded-xl border border-zinc-800">
+                <span className="text-xl">🍎</span>
+                <p className="font-black text-white">Instalação no iPhone</p>
+              </div>
+              <ol className="text-sm text-zinc-300 space-y-5 font-medium">
+                <li className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 font-bold">1</div>
+                  <p>Toque no ícone de <span className="text-white font-bold bg-zinc-800 px-2 py-0.5 rounded ml-1">Compartilhar</span> <br/><span className="text-xs text-zinc-500">(O quadrado com uma seta para cima na barra inferior).</span></p>
+                </li>
+                <li className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 font-bold">2</div>
+                  <p>Role para baixo e escolha <span className="text-white font-bold bg-zinc-800 px-2 py-0.5 rounded ml-1">Adicionar à Tela de Início</span>.</p>
+                </li>
+                <li className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 font-bold">3</div>
+                  <p>Confirme clicando em <span className="text-white font-bold">Adicionar</span> e abra pela sua tela inicial!</p>
+                </li>
+              </ol>
+            </div>
+          ) : (
+            <button 
+              onClick={handleInstallClick}
+              className="w-full flex items-center justify-center gap-3 bg-amber-500 text-zinc-950 px-8 py-5 rounded-2xl font-black text-lg hover:bg-amber-400 transition-all shadow-[0_0_30px_rgba(245,158,11,0.3)] hover:shadow-[0_0_50px_rgba(245,158,11,0.5)] hover:-translate-y-1"
+            >
+              <Download size={24} />
+              Instalar Aplicativo Agora
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+  // ==========================================
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
+    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden pb-20">
       
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>

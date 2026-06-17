@@ -440,10 +440,10 @@ export default function Home() {
                   type="date"
                   value={agendamento.data}
                   min={new Date().toISOString().split('T')[0]}
-                  // === NOVA REGRA DE TRAVAMENTO PARA 3 MESES ===
+                  // === NOVA REGRA DE TRAVAMENTO PARA 2 MESES ===
                   max={(() => {
                     const d = new Date();
-                    d.setMonth(d.getMonth() + 3);
+                    d.setMonth(d.getMonth() + 2);
                     return d.toISOString().split('T')[0];
                   })()}
                   onChange={(e) => setAgendamento({ ...agendamento, data: e.target.value })}

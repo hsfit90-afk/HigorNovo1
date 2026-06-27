@@ -44,6 +44,22 @@ export default function Home() {
   const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [sucesso, setSucesso] = useState(false);
+  const [isPixModalOpen, setIsPixModalOpen] = useState(false);
+  const [isLojaFechada, setIsLojaFechada] = useState(false);
+
+  useEffect(() => {
+    const checkStatusLoja = async () => {
+      const { data } = await supabase
+        .from('agendamentos')
+        .select('id')
+        .eq('servico', 'LOJA_FECHADA')
+        .limit(1);
+      if (data && data.length > 0) {
+        setIsLojaFechada(true);
+      }
+    };
+    checkStatusLoja();
+  }, []);
 
   // === SISTEMA DA BARREIRA DE INSTALAÇÃO ===
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -154,7 +170,7 @@ export default function Home() {
     });
   };
 
-  const handleAgendar = async () => {
+  const iniciarAgendamento = () => {
     if (!isUserLoggedIn) {
       alert("Por favor, faça login ou cadastre-se para agendar seu horário.");
       router.push('/login');
@@ -166,6 +182,10 @@ export default function Home() {
       return;
     }
 
+    setIsPixModalOpen(true);
+  };
+
+  const finalizarAgendamento = async () => {
     setLoadingAgendamento(true);
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -183,7 +203,7 @@ export default function Home() {
           hora: agendamento.hora,
           cliente_nome: agendamento.cliente_nome,
           cliente_telefone: agendamento.cliente_telefone,
-          status: 'Confirmado'
+          status: 'Pendente'
         }
       ]);
 
@@ -191,11 +211,12 @@ export default function Home() {
       const numeroBarbeiro = "5511953676910";
       const dataFormatada = agendamento.data.split('-').reverse().join('/');
       
-      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}`;
+      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A💳 *Pagamento:* Segue o comprovante do sinal de R$ 10,00.`;
       
       window.open(`https://wa.me/${numeroBarbeiro}?text=${texto}`, '_blank');
 
       setSucesso(true);
+      setIsPixModalOpen(false);
       setTimeout(() => {
         setSucesso(false);
         setAgendamento({
@@ -213,6 +234,24 @@ export default function Home() {
     setLoadingAgendamento(false);
   };
 
+  const toggleStatusLoja = async () => {
+    if (isLojaFechada) {
+      await supabase.from('agendamentos').delete().eq('servico', 'LOJA_FECHADA');
+      setIsLojaFechada(false);
+      alert('Barbearia ABERTA para novos agendamentos!');
+    } else {
+      await supabase.from('agendamentos').insert([{ 
+        servico: 'LOJA_FECHADA', 
+        data: '2099-12-31', 
+        hora: '00:00', 
+        cliente_nome: 'Sistema', 
+        status: 'Fechado' 
+      }]);
+      setIsLojaFechada(true);
+      alert('Barbearia FECHADA! Ninguém poderá agendar a partir de agora.');
+    }
+  };
+
   const handleSair = async () => {
     await supabase.auth.signOut();
     setIsUserLoggedIn(false);
@@ -222,16 +261,16 @@ export default function Home() {
   // TELA DE BLOQUEIO (APARECE SE NÃO TIVER INSTALADO NO CELULAR)
   if (hasChecked && !isStandalone && isMobile) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-50 flex flex-col items-center justify-center p-8 text-center selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
+      <div className="min-h-screen bg-zinc-950 text-zinc-50 flex flex-col items-center justify-center p-8 text-center selection:bg-blue-600 selection:text-zinc-950 relative overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
         
-        <div className="w-32 h-32 bg-zinc-900 rounded-[2rem] p-2 mb-8 border border-amber-500/30 shadow-[0_0_50px_rgba(245,158,11,0.2)] relative z-10">
+        <div className="w-32 h-32 bg-zinc-900 rounded-[2rem] p-2 mb-8 border border-blue-600/30 shadow-[0_0_50px_rgba(37,99,235,0.2)] relative z-10">
             <Image src={logoImg} alt="Logo" className="w-full h-full object-cover rounded-[1.5rem]" />
         </div>
         
         <h1 className="text-3xl md:text-4xl font-black mb-4 relative z-10">
-          Obrigatório <br/> <span className="text-amber-500">Instalar o App</span>
+          Obrigatório <br/> <span className="text-blue-600">Instalar o App</span>
         </h1>
         
         <p className="text-zinc-400 mb-10 max-w-sm text-lg font-medium relative z-10">
@@ -247,15 +286,15 @@ export default function Home() {
               </div>
               <ol className="text-sm text-zinc-300 space-y-5 font-medium">
                 <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 font-bold">1</div>
+                  <div className="w-6 h-6 rounded-full bg-blue-600/10 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">1</div>
                   <p>Toque no ícone de <span className="text-white font-bold bg-zinc-800 px-2 py-0.5 rounded ml-1">Compartilhar</span> <br/><span className="text-xs text-zinc-500">(O quadrado com uma seta para cima na barra inferior).</span></p>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 font-bold">2</div>
+                  <div className="w-6 h-6 rounded-full bg-blue-600/10 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">2</div>
                   <p>Role para baixo e escolha <span className="text-white font-bold bg-zinc-800 px-2 py-0.5 rounded ml-1">Adicionar à Tela de Início</span>.</p>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 font-bold">3</div>
+                  <div className="w-6 h-6 rounded-full bg-blue-600/10 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">3</div>
                   <p>Confirme clicando em <span className="text-white font-bold">Adicionar</span> e abra pela sua tela inicial!</p>
                 </li>
               </ol>
@@ -263,7 +302,7 @@ export default function Home() {
           ) : (
             <button 
               onClick={handleInstallClick}
-              className="w-full flex items-center justify-center gap-3 bg-amber-500 text-zinc-950 px-8 py-5 rounded-2xl font-black text-lg hover:bg-amber-400 transition-all shadow-[0_0_30px_rgba(245,158,11,0.3)] hover:shadow-[0_0_50px_rgba(245,158,11,0.5)] hover:-translate-y-1"
+              className="w-full flex items-center justify-center gap-3 bg-blue-600 text-zinc-950 px-8 py-5 rounded-2xl font-black text-lg hover:bg-blue-500 transition-all shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:shadow-[0_0_50px_rgba(37,99,235,0.5)] hover:-translate-y-1"
             >
               <Download size={24} />
               Instalar Aplicativo Agora
@@ -275,25 +314,43 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden pb-20">
+    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-blue-600 selection:text-zinc-950 relative overflow-hidden pb-20">
       
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
 
       <nav className="flex justify-between items-center p-6 md:px-12 bg-zinc-950/40 backdrop-blur-2xl sticky top-0 z-50 border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] bg-white">
+        <div className="flex items-center gap-3">
+          <div className="w-[60px] h-[60px] min-w-[60px] flex-shrink-0 rounded-full overflow-hidden border border-blue-600/50 shadow-[0_0_20px_rgba(37,99,235,0.2)] bg-white flex items-center justify-center">
             <Image src={logoImg} alt="Logo" className="w-full h-full object-contain" />
           </div>
-          <span className="text-xl font-black tracking-widest text-zinc-100 drop-shadow-md">NOVO DE NOVO</span>
+          <div className="flex flex-col items-center justify-center -space-y-1">
+            <span className="text-xl font-black tracking-widest text-zinc-100 drop-shadow-md leading-none">NOVO</span>
+            <span className="text-[10px] font-black tracking-widest text-blue-500 drop-shadow-md leading-none">DE</span>
+            <span className="text-xl font-black tracking-widest text-zinc-100 drop-shadow-md leading-none">NOVO</span>
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <button onClick={() => router.push('/admin')} className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 rounded-full hover:bg-amber-500 hover:text-zinc-950 font-bold transition-all border border-amber-500/30">
-              <ShieldCheck size={16} />
-              <span className="text-sm hidden sm:inline">Painel do Admin</span>
-            </button>
+            <>
+              <button 
+                onClick={toggleStatusLoja} 
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-all border ${
+                  isLojaFechada 
+                    ? 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500 hover:text-white'
+                    : 'bg-green-500/10 text-green-500 border-green-500/30 hover:bg-green-500 hover:text-white'
+                }`}
+                title={isLojaFechada ? 'Abrir Barbearia' : 'Fechar Barbearia'}
+              >
+                <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+                <span className="text-sm hidden sm:inline">{isLojaFechada ? 'Sistema Fechado' : 'Sistema Aberto'}</span>
+              </button>
+              <button onClick={() => router.push('/admin')} className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 text-blue-600 rounded-full hover:bg-blue-600 hover:text-zinc-950 font-bold transition-all border border-blue-600/30">
+                <ShieldCheck size={16} />
+                <span className="text-sm hidden sm:inline">Painel do Admin</span>
+              </button>
+            </>
           )}
 
           {isUserLoggedIn ? (
@@ -302,7 +359,7 @@ export default function Home() {
               <span className="text-sm hidden sm:inline">Sair</span>
             </button>
           ) : (
-            <button onClick={() => router.push('/login')} className="flex items-center gap-2 px-6 py-2 bg-amber-500 text-zinc-950 rounded-full hover:bg-amber-400 font-bold transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+            <button onClick={() => router.push('/login')} className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-zinc-950 rounded-full hover:bg-blue-500 font-bold transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)]">
               <User size={16} />
               <span className="text-sm">Fazer Login</span>
             </button>
@@ -313,15 +370,13 @@ export default function Home() {
       <main className="flex flex-col xl:flex-row items-center justify-center p-6 md:p-12 gap-12 max-w-7xl mx-auto min-h-[calc(100vh-100px)]">
         
         <div className="w-full xl:w-1/2 flex flex-col gap-8 relative z-10">
-          <div className="inline-block px-4 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-500 text-xs font-black tracking-widest w-fit shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+          <div className="inline-block px-4 py-1.5 rounded-full border border-blue-600/30 bg-blue-600/10 text-blue-600 text-xs font-black tracking-widest w-fit shadow-[0_0_20px_rgba(37,99,235,0.1)]">
             EXCELÊNCIA EM BARBEARIA
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tight">
+          <h1 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tight text-white drop-shadow-sm">
             O seu estilo, <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-amber-300 drop-shadow-sm">
-              nossa obra de arte.
-            </span>
+            nossa obra de arte.
           </h1>
           
           <p className="text-zinc-400 text-lg md:text-xl max-w-md leading-relaxed font-medium">
@@ -332,12 +387,12 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent z-10 opacity-60"></div>
             <Image src={donoImg} alt="Barbeiro" fill className="object-cover transition-transform duration-1000 group-hover:scale-110" />
             <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.5)]">
+              <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.5)]">
                 <Scissors className="text-zinc-950" />
               </div>
               <div>
                 <p className="text-white font-bold text-lg leading-tight">Cortes Premium</p>
-                <p className="text-amber-500 text-sm font-semibold">Técnicas Exclusivas</p>
+                <p className="text-zinc-300 text-sm font-semibold">Técnicas Exclusivas</p>
               </div>
             </div>
           </div>
@@ -346,16 +401,29 @@ export default function Home() {
         <div className="w-full xl:w-1/2 max-w-lg relative z-10">
           <div className="bg-zinc-900/40 backdrop-blur-3xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden">
             
-            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[50px]"></div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-[50px]"></div>
 
             <h2 className="text-3xl font-black mb-8 flex items-center gap-3 relative z-10">
-              <div className="w-2 h-8 bg-amber-500 rounded-full"></div>
+              <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
               Agende seu Horário
             </h2>
 
+            {isLojaFechada ? (
+              <div className="relative z-10 bg-red-500/10 border border-red-500/30 p-8 rounded-2xl text-center flex flex-col items-center gap-4">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🔒</span>
+                </div>
+                <h3 className="text-2xl font-black text-red-500">Estamos Fechados</h3>
+                <p className="text-zinc-300 font-medium">
+                  Nossa agenda está temporariamente fechada para novos horários. Por favor, tente novamente mais tarde!
+                </p>
+              </div>
+            ) : (
+              <>
+
             <div className="mb-6 relative z-10">
               <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                <Scissors size={16} className="text-amber-500" /> 1. Cortes e Barba
+                <Scissors size={16} className="text-blue-600" /> 1. Cortes e Barba
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {servicos.filter(s => s.categoria === 'Básico').map((servico) => {
@@ -366,12 +434,12 @@ export default function Home() {
                       onClick={() => toggleServico(servico.nome)}
                       className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 min-h-[64px] ${
                         isSelected
-                          ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                          : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                          ? 'bg-blue-600 text-zinc-950 border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                          : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-blue-600/50 hover:bg-zinc-800'
                       }`}
                     >
                       <span className="text-center w-full px-1 leading-tight">{servico.nome}</span>
-                      <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
+                      <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-blue-600/80 text-[11px]'}>{servico.preco}</span>
                     </button>
                   );
                 })}
@@ -380,7 +448,7 @@ export default function Home() {
 
             <div className="mb-8 relative z-10">
               <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                <Droplet size={16} className="text-amber-500" /> 2. Químicas e Tratamentos
+                <Droplet size={16} className="text-blue-600" /> 2. Químicas e Tratamentos
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {servicos.filter(s => s.categoria === 'Químicas').map((servico) => {
@@ -391,12 +459,12 @@ export default function Home() {
                       onClick={() => toggleServico(servico.nome)}
                       className={`p-2 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center justify-center gap-1 min-h-[64px] ${
                         isSelected
-                          ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                          : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                          ? 'bg-blue-600 text-zinc-950 border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                          : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-blue-600/50 hover:bg-zinc-800'
                       }`}
                     >
                       <span className="text-center w-full px-1 leading-tight">{servico.nome}</span>
-                      <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-amber-500/80 text-[11px]'}>{servico.preco}</span>
+                      <span className={isSelected ? 'text-zinc-800 text-[11px]' : 'text-blue-600/80 text-[11px]'}>{servico.preco}</span>
                     </button>
                   );
                 })}
@@ -406,27 +474,27 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
               <div>
                 <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                  <User size={16} className="text-amber-500" /> Seu Nome
+                  <User size={16} className="text-blue-600" /> Seu Nome
                 </label>
                 <input
                   type="text"
                   placeholder="Ex: João Silva"
                   value={agendamento.cliente_nome}
                   onChange={(e) => setAgendamento({ ...agendamento, cliente_nome: e.target.value })}
-                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all font-medium"
+                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-blue-600 transition-all font-medium"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                  <Phone size={16} className="text-amber-500" /> WhatsApp
+                  <Phone size={16} className="text-blue-600" /> WhatsApp
                 </label>
                 <input
                   type="tel"
                   placeholder="(00) 00000-0000"
                   value={agendamento.cliente_telefone}
                   onChange={(e) => setAgendamento({ ...agendamento, cliente_telefone: e.target.value })}
-                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all font-medium"
+                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-blue-600 transition-all font-medium"
                 />
               </div>
             </div>
@@ -434,7 +502,7 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
               <div>
                 <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                  <Calendar size={16} className="text-amber-500" /> Data
+                  <Calendar size={16} className="text-blue-600" /> Data
                 </label>
                 <input
                   type="date"
@@ -447,14 +515,14 @@ export default function Home() {
                     return d.toISOString().split('T')[0];
                   })()}
                   onChange={(e) => setAgendamento({ ...agendamento, data: e.target.value })}
-                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-amber-500 transition-all font-medium color-scheme-dark"
+                  className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-blue-600 transition-all font-medium color-scheme-dark"
                   style={{ colorScheme: 'dark' }}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                  <Clock size={16} className="text-amber-500" /> Horário
+                  <Clock size={16} className="text-blue-600" /> Horário
                 </label>
                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                   {agendamento.data ? (
@@ -472,7 +540,7 @@ export default function Home() {
                               className="p-1 rounded-xl text-sm font-bold border transition-all bg-zinc-900/20 text-zinc-600 border-zinc-800/50 cursor-not-allowed flex flex-col items-center justify-center gap-0.5"
                             >
                               <span className="line-through">{hora}</span>
-                              <span className="text-[10px] uppercase text-amber-500/50">Almoço</span>
+                              <span className="text-[10px] uppercase text-blue-600/50">Almoço</span>
                             </button>
                           );
                         }
@@ -486,8 +554,8 @@ export default function Home() {
                               isOcupado
                                 ? 'bg-red-500/10 text-red-500/50 border-red-500/20 cursor-not-allowed'
                                 : agendamento.hora === hora
-                                ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
-                                : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                                ? 'bg-blue-600 text-zinc-950 border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                                : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-blue-600/50 hover:bg-zinc-800'
                             }`}
                           >
                             {hora}
@@ -509,10 +577,10 @@ export default function Home() {
             </div>
 
             <button
-              onClick={handleAgendar}
+              onClick={iniciarAgendamento}
               disabled={loadingAgendamento || sucesso}
               className={`w-full py-5 rounded-2xl font-black text-lg transition-all relative overflow-hidden group ${
-                sucesso ? 'bg-green-500 text-white shadow-[0_0_30px_rgba(34,197,94,0.4)]' : 'bg-amber-500 text-zinc-950 hover:bg-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.3)] hover:shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:-translate-y-1'
+                sucesso ? 'bg-green-500 text-white shadow-[0_0_30px_rgba(34,197,94,0.4)]' : 'bg-blue-600 text-zinc-950 hover:bg-blue-500 shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:shadow-[0_0_40px_rgba(37,99,235,0.5)] hover:-translate-y-1'
               }`}
             >
               {sucesso ? (
@@ -525,15 +593,91 @@ export default function Home() {
                 </span>
               )}
             </button>
+              </>
+            )}
           </div>
         </div>
       </main>
       
+      {/* HISTÓRIA SECTION */}
+      <section className="max-w-7xl mx-auto px-6 md:px-12 py-20 relative z-10 mt-12">
+        <div className="flex flex-col md:flex-row gap-12 items-center">
+          <div className="w-full md:w-1/2 flex flex-col gap-6">
+            <h2 className="text-4xl md:text-5xl font-black text-white flex items-center gap-4">
+              <span className="w-12 h-2 bg-blue-600 rounded-full inline-block"></span>
+              Mais que um corte de cabelo.
+            </h2>
+            <p className="text-zinc-400 text-lg leading-relaxed">
+              Desde 2018, a Barbearia Novo de Novo vem ajudando homens a renovarem sua autoestima, estilo e confiança.
+            </p>
+            <p className="text-zinc-400 text-lg leading-relaxed">
+              Com atendimento personalizado e horário marcado, oferecemos uma experiência tranquila, profissional e pensada para valorizar o seu tempo.
+            </p>
+            <p className="text-blue-500 font-bold text-xl mt-4">
+              Agende seu horário e saia Novo de Novo.
+            </p>
+          </div>
+          
+          <div className="w-full md:w-1/2 bg-zinc-900/40 backdrop-blur-3xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative">
+            <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-blue-600/20 blur-[30px] rounded-full"></div>
+            <p className="text-zinc-300 text-lg leading-relaxed mb-6 font-medium italic">
+              "A Barbearia Novo de Novo nasceu da paixão pela profissão e do compromisso com cada cliente."
+            </p>
+            <p className="text-zinc-400 text-md leading-relaxed mb-6">
+              Localizada no Jardim Clementino, atendemos desde 2018 com foco em qualidade, respeito e atenção aos detalhes.
+            </p>
+            <p className="text-zinc-400 text-md leading-relaxed">
+              Aqui, cada atendimento é realizado com horário marcado, proporcionando mais conforto, organização e dedicação para que você tenha a melhor experiência possível.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* PIX MODAL */}
+      {isPixModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-blue-600/30 p-8 rounded-[2rem] max-w-md w-full shadow-[0_0_50px_rgba(37,99,235,0.2)] relative">
+            <button 
+              onClick={() => setIsPixModalOpen(false)}
+              className="absolute top-6 right-6 text-zinc-500 hover:text-white"
+            >
+              <X size={24} />
+            </button>
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center border border-blue-600/30 mb-2">
+                <span className="text-2xl">💰</span>
+              </div>
+              <h3 className="text-2xl font-black text-white">Sinal de Confirmação</h3>
+              <p className="text-zinc-400 text-sm">
+                Para confirmar seu horário, pedimos um sinal de <strong>R$ 10,00</strong>. O restante será pago no local.
+              </p>
+              
+              <div className="bg-zinc-950 p-4 rounded-xl w-full border border-white/5 my-2">
+                <p className="text-xs text-zinc-500 font-bold mb-1 uppercase tracking-wider">Sua Chave PIX</p>
+                <p className="text-white font-mono font-bold text-lg select-all">47495378000177</p>
+              </div>
+
+              <p className="text-xs text-zinc-500 mb-4">
+                Após fazer o PIX, clique no botão abaixo para enviar o comprovante no WhatsApp.
+              </p>
+
+              <button
+                onClick={finalizarAgendamento}
+                disabled={loadingAgendamento}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-black rounded-xl text-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)]"
+              >
+                {loadingAgendamento ? 'Processando...' : 'Enviar Comprovante'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.2); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(245,158,11,0.5); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.5); }
       `}} />
     </div>
   );

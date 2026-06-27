@@ -32,14 +32,25 @@ export default function AdminPage() {
 
   const buscarAgendamentos = async () => {
     setLoading(true);
+
+    const agora = new Date();
+    const dataAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);
+    const horaAtual = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(agora);
+
     const { data } = await supabase
       .from('agendamentos')
       .select('*')
+      .gte('data', dataAtual)
       .order('data', { ascending: true })
       .order('hora', { ascending: true });
       
     if (data) {
-      setAgendamentos(data);
+      const agendamentosPendentes = data.filter(ag => {
+        if (ag.data > dataAtual) return true;
+        if (ag.data === dataAtual && ag.hora >= horaAtual) return true;
+        return false;
+      });
+      setAgendamentos(agendamentosPendentes);
     }
     setLoading(false);
   };
@@ -59,13 +70,13 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 p-6 md:p-12 font-sans selection:bg-amber-500 selection:text-zinc-950">
+    <div className="min-h-screen bg-zinc-950 text-zinc-50 p-6 md:p-12 font-sans selection:bg-blue-600 selection:text-zinc-950">
       
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
             <h1 className="text-3xl font-black text-white flex items-center gap-3">
-              <div className="w-2 h-8 bg-amber-500 rounded-full"></div>
+              <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
               Painel de Agendamentos
             </h1>
             <p className="text-zinc-400 mt-2">Área restrita para administradores da barbearia.</p>
@@ -73,7 +84,7 @@ export default function AdminPage() {
           
           <button 
             onClick={() => router.push('/')}
-            className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-xl text-zinc-300 hover:text-amber-500 hover:border-amber-500/50 transition-all font-semibold"
+            className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-xl text-zinc-300 hover:text-blue-600 hover:border-blue-600/50 transition-all font-semibold"
           >
             <Home size={18} />
             Voltar para o Site
@@ -102,13 +113,13 @@ export default function AdminPage() {
                   <tr key={agendamento.id} className="hover:bg-zinc-800/20 transition-colors group">
                     <td className="p-4">
                       <div className="flex items-center gap-2 text-zinc-300 font-semibold whitespace-nowrap">
-                        <Calendar size={16} className="text-amber-500/70" /> 
+                        <Calendar size={16} className="text-blue-600/70" /> 
                         {formatarData(agendamento.data)}
                       </div>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2 text-zinc-300 font-bold bg-zinc-900/50 w-fit px-3 py-1 rounded-lg border border-zinc-800">
-                        <Clock size={16} className="text-amber-500" /> 
+                        <Clock size={16} className="text-blue-600" /> 
                         {agendamento.hora}
                       </div>
                     </td>
@@ -125,8 +136,8 @@ export default function AdminPage() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2 text-amber-500/90 font-medium max-w-xs break-words">
-                        <Scissors size={16} className="text-amber-500/50 flex-shrink-0" /> 
+                      <div className="flex items-center gap-2 text-blue-600/90 font-medium max-w-xs break-words">
+                        <Scissors size={16} className="text-blue-600/50 flex-shrink-0" /> 
                         {agendamento.servico}
                       </div>
                     </td>

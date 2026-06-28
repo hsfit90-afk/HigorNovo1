@@ -44,7 +44,6 @@ export default function Home() {
   const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [sucesso, setSucesso] = useState(false);
-  const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isLojaFechada, setIsLojaFechada] = useState(false);
 
   useEffect(() => {
@@ -112,6 +111,23 @@ export default function Home() {
         setIsUserLoggedIn(true);
         if (session.user.email === 'souza.higor@gmail.com' || session.user.email === 'pietro.radical.black@gmail.com') {
           setIsAdmin(true);
+        }
+
+        // Busca o último agendamento do usuário para preencher nome e telefone
+        const { data: ultimoAgendamento } = await supabase
+          .from('agendamentos')
+          .select('cliente_nome, cliente_telefone')
+          .eq('user_id', session.user.id)
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (ultimoAgendamento) {
+          setAgendamento(prev => ({
+            ...prev,
+            cliente_nome: ultimoAgendamento.cliente_nome || '',
+            cliente_telefone: ultimoAgendamento.cliente_telefone || ''
+          }));
         }
       }
     };
@@ -182,7 +198,7 @@ export default function Home() {
       return;
     }
 
-    setIsPixModalOpen(true);
+    finalizarAgendamento();
   };
 
   const finalizarAgendamento = async () => {
@@ -211,12 +227,11 @@ export default function Home() {
       const numeroBarbeiro = "5511953676910";
       const dataFormatada = agendamento.data.split('-').reverse().join('/');
       
-      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A💳 *Pagamento:* Segue o comprovante do sinal de R$ 10,00.`;
+      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
       
       window.open(`https://wa.me/${numeroBarbeiro}?text=${texto}`, '_blank');
 
       setSucesso(true);
-      setIsPixModalOpen(false);
       setTimeout(() => {
         setSucesso(false);
         setAgendamento({
@@ -575,6 +590,17 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            
+            {/* AVISO DE TOLERÂNCIA */}
+            <div className="mb-6 relative z-10 bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl flex items-start gap-3">
+              <div className="mt-0.5 text-yellow-500">
+                <Clock size={20} />
+              </div>
+              <div>
+                <p className="text-yellow-500 font-bold text-sm uppercase tracking-wider mb-1">Atenção ao Horário</p>
+                <p className="text-zinc-400 text-sm font-medium">Temos uma tolerância máxima de <strong>10 minutos</strong> de atraso. Após esse período, o agendamento poderá ser cancelado.</p>
+              </div>
+            </div>
 
             <button
               onClick={iniciarAgendamento}
@@ -633,46 +659,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* PIX MODAL */}
-      {isPixModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-blue-600/30 p-8 rounded-[2rem] max-w-md w-full shadow-[0_0_50px_rgba(37,99,235,0.2)] relative">
-            <button 
-              onClick={() => setIsPixModalOpen(false)}
-              className="absolute top-6 right-6 text-zinc-500 hover:text-white"
-            >
-              <X size={24} />
-            </button>
-            <div className="flex flex-col items-center text-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center border border-blue-600/30 mb-2">
-                <span className="text-2xl">💰</span>
-              </div>
-              <h3 className="text-2xl font-black text-white">Sinal de Confirmação</h3>
-              <p className="text-zinc-400 text-sm">
-                Para confirmar seu horário, pedimos um sinal de <strong>R$ 10,00</strong>. O restante será pago no local.
-              </p>
-              
-              <div className="bg-zinc-950 p-4 rounded-xl w-full border border-white/5 my-2">
-                <p className="text-xs text-zinc-500 font-bold mb-1 uppercase tracking-wider">Sua Chave PIX</p>
-                <p className="text-white font-mono font-bold text-lg select-all">47495378000177</p>
-              </div>
-
-              <p className="text-xs text-zinc-500 mb-4">
-                Após fazer o PIX, clique no botão abaixo para enviar o comprovante no WhatsApp.
-              </p>
-
-              <button
-                onClick={finalizarAgendamento}
-                disabled={loadingAgendamento}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-black rounded-xl text-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)]"
-              >
-                {loadingAgendamento ? 'Processando...' : 'Enviar Comprovante'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }

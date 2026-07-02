@@ -167,8 +167,7 @@ export default function Home() {
     const { data: agendamentos } = await supabase
       .from('agendamentos')
       .select('hora')
-      .eq('data', data)
-      .eq('status', 'Confirmado');
+      .eq('data', data);
     
     if (agendamentos) {
       setHorariosOcupados(agendamentos.map(a => a.hora));

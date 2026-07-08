@@ -206,6 +206,20 @@ export default function Home() {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
 
+    // Verifica se já existe um agendamento para este dia e horário antes de inserir
+    const { data: checkData, error: checkError } = await supabase
+      .from('agendamentos')
+      .select('id')
+      .eq('data', agendamento.data)
+      .eq('hora', agendamento.hora);
+
+    if (checkData && checkData.length > 0) {
+      alert('Desculpe, este horário acabou de ser reservado. Por favor, escolha outro.');
+      setLoadingAgendamento(false);
+      buscarHorariosOcupados(agendamento.data); // Atualiza os horários ocupados
+      return;
+    }
+
     const servicosFormatados = agendamento.servicosSelecionados.join(' + ');
 
     const { error } = await supabase
@@ -596,7 +610,7 @@ export default function Home() {
                 <Clock size={20} />
               </div>
               <div>
-                <p className="text-yellow-500 font-bold text-sm uppercase tracking-wider mb-1">Atenção ao Horário</p>
+                 <p className="text-yellow-500 font-bold text-sm uppercase tracking-wider mb-1">Atenção ao Horário</p>
                 <p className="text-zinc-400 text-sm font-medium">Temos uma tolerância máxima de <strong>10 minutos</strong> de atraso. Após esse período, o agendamento poderá ser cancelado.</p>
               </div>
             </div>

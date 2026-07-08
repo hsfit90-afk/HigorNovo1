@@ -151,7 +151,7 @@ export default function Home() {
       let endHour = 21;
 
       if (dayOfWeek === 1) { startHour = 15; endHour = 21; } 
-      else if (dayOfWeek === 3) { startHour = 9; endHour = 19; } 
+      else if (dayOfWeek === 3) { startHour = 9; endHour = 20; } 
       else if (dayOfWeek === 4) { startHour = 9; endHour = 18; } 
 
       const slots: string[] = [];

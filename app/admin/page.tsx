@@ -125,7 +125,7 @@ export default function AdminPage() {
         </div>
 
         {abaAtiva === 'estatisticas' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-6 shadow-2xl flex flex-col justify-center">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-zinc-300">Total de Atendimentos</h3>
@@ -142,7 +142,7 @@ export default function AdminPage() {
                 <Scissors size={20} className="text-blue-500" />
                 Serviços Mais Solicitados
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {Object.entries(
                   todos.reduce((acc, curr) => {
                     const serv = curr.servico || 'Outros';
@@ -152,12 +152,12 @@ export default function AdminPage() {
                 )
                   .sort((a, b) => (b[1] as number) - (a[1] as number))
                   .map(([servico, qtd]) => (
-                    <div key={servico} className="flex items-center justify-between bg-zinc-950/50 p-3 rounded-xl border border-white/5">
+                    <div key={servico} className="flex items-center justify-between bg-zinc-950/50 py-2 px-3 rounded-xl border border-white/5">
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                        <span className="text-zinc-200 font-bold">{servico}</span>
+                        <span className="text-zinc-200 font-bold text-sm">{servico}</span>
                       </div>
-                      <span className="bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg text-sm font-black border border-blue-500/20">
+                      <span className="bg-blue-600/20 text-blue-400 px-2.5 py-1 rounded-lg text-xs font-black border border-blue-500/20">
                         {qtd as number}x
                       </span>
                     </div>

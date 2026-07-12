@@ -163,7 +163,7 @@ export default function AdminPage() {
                         <span className="text-zinc-200 font-bold">{servico}</span>
                       </div>
                       <span className="bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg text-sm font-black border border-blue-500/20">
-                        {qtd}x
+                        {qtd as number}x
                       </span>
                     </div>
                   ))}

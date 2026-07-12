@@ -19,15 +19,12 @@ export default function AdminPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      // A BARREIRA DO LOGIN ESTÁ QUEBRADA PARA VISUALIZAÇÃO:
-      /*
       const { data: { session } } = await supabase.auth.getSession();
       const adminEmails = ['souza.higor@gmail.com', 'pietro.radical.black@gmail.com'];
       if (!session || !session.user.email || !adminEmails.includes(session.user.email)) {
         router.push('/');
         return;
       }
-      */
       buscarAgendamentos();
     };
     checkUser();
@@ -40,34 +37,32 @@ export default function AdminPage() {
     const dataAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);
     const horaAtual = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(agora);
 
-    // MOCK DATA PARA VISUALIZAR O PAINEL ENQUANTO O SUPABASE ESTÁ PAUSADO
-    const mockData = [
-      { id: 1, data: '2027-01-01', hora: '15:00', cliente_nome: 'João (Agendamento Futuro)', cliente_telefone: '11999999999', servico: 'Corte + Barba' },
-      { id: 2, data: '2023-05-10', hora: '10:00', cliente_nome: 'Carlos (Agendamento Passado)', cliente_telefone: '11888888888', servico: 'Corte' },
-      { id: 3, data: '2023-05-11', hora: '14:00', cliente_nome: 'Marcos', cliente_telefone: '11777777777', servico: 'Corte' },
-      { id: 4, data: '2023-05-12', hora: '11:00', cliente_nome: 'Felipe', cliente_telefone: '11666666666', servico: 'Barba' },
-      { id: 5, data: '2023-05-13', hora: '16:00', cliente_nome: 'Lucas', cliente_telefone: '11555555555', servico: 'Corte + Barba' },
-      { id: 6, data: '2023-05-14', hora: '09:00', cliente_nome: 'Pedro', cliente_telefone: '11444444444', servico: 'Sobrancelha' },
-    ];
+    const { data } = await supabase
+      .from('agendamentos')
+      .select('*')
+      .order('data', { ascending: false })
+      .order('hora', { ascending: false });
       
-    const agendamentosPendentes = mockData.filter(ag => {
-      if (ag.data > dataAtual) return true;
-      if (ag.data === dataAtual && ag.hora >= horaAtual) return true;
-      return false;
-    }).sort((a, b) => {
-      if (a.data !== b.data) return a.data.localeCompare(b.data);
-      return a.hora.localeCompare(b.hora);
-    });
+    if (data) {
+      const agendamentosPendentes = data.filter(ag => {
+        if (ag.data > dataAtual) return true;
+        if (ag.data === dataAtual && ag.hora >= horaAtual) return true;
+        return false;
+      }).sort((a, b) => {
+        if (a.data !== b.data) return a.data.localeCompare(b.data);
+        return a.hora.localeCompare(b.hora);
+      });
 
-    const agendamentosPassados = mockData.filter(ag => {
-      if (ag.data < dataAtual) return true;
-      if (ag.data === dataAtual && ag.hora < horaAtual) return true;
-      return false;
-    });
+      const agendamentosPassados = data.filter(ag => {
+        if (ag.data < dataAtual) return true;
+        if (ag.data === dataAtual && ag.hora < horaAtual) return true;
+        return false;
+      });
 
-    setAgendamentos(agendamentosPendentes);
-    setHistorico(agendamentosPassados);
-    setTodos(mockData);
+      setAgendamentos(agendamentosPendentes);
+      setHistorico(agendamentosPassados);
+      setTodos(data);
+    }
     setLoading(false);
   };
 

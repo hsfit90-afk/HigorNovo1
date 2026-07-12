@@ -84,40 +84,40 @@ export default function AdminPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-50 p-6 md:p-12 font-sans selection:bg-blue-600 selection:text-zinc-950">
       
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-5">
           <div>
-            <h1 className="text-3xl font-black text-white flex items-center gap-3">
-              <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
+            <h1 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
+              <div className="w-2 h-6 md:h-8 bg-blue-600 rounded-full"></div>
               Painel de Agendamentos
             </h1>
-            <p className="text-zinc-400 mt-2">Área restrita para administradores da barbearia.</p>
+            <p className="text-sm md:text-base text-zinc-400 mt-1 md:mt-2">Área restrita para administradores da barbearia.</p>
           </div>
           
           <button 
             onClick={() => router.push('/')}
-            className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-xl text-zinc-300 hover:text-blue-600 hover:border-blue-600/50 transition-all font-semibold"
+            className="w-full md:w-auto flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-3 md:py-2 rounded-xl text-zinc-300 hover:text-blue-600 hover:border-blue-600/50 transition-all font-semibold"
           >
             <Home size={18} />
             Voltar para o Site
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-4 mb-6">
+        <div className="flex overflow-x-auto gap-3 mb-6 pb-2 custom-scrollbar">
           <button 
             onClick={() => setAbaAtiva('proximos')}
-            className={`px-6 py-2 rounded-xl font-bold transition-all ${abaAtiva === 'proximos' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
+            className={`whitespace-nowrap flex-shrink-0 px-5 py-2.5 md:px-6 md:py-2 rounded-xl font-bold transition-all ${abaAtiva === 'proximos' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
           >
             Próximos Agendamentos
           </button>
           <button 
             onClick={() => setAbaAtiva('historico')}
-            className={`px-6 py-2 rounded-xl font-bold transition-all ${abaAtiva === 'historico' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
+            className={`whitespace-nowrap flex-shrink-0 px-5 py-2.5 md:px-6 md:py-2 rounded-xl font-bold transition-all ${abaAtiva === 'historico' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
           >
             Histórico de Atendimentos
           </button>
           <button 
             onClick={() => setAbaAtiva('estatisticas')}
-            className={`px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${abaAtiva === 'estatisticas' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
+            className={`whitespace-nowrap flex-shrink-0 px-5 py-2.5 md:px-6 md:py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${abaAtiva === 'estatisticas' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
           >
             <BarChart3 size={18} />
             Estatísticas

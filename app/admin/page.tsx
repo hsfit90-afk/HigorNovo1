@@ -155,7 +155,7 @@ export default function AdminPage() {
                     return acc;
                   }, {} as Record<string, number>)
                 )
-                  .sort((a, b) => b[1] - a[1])
+                  .sort((a, b) => (b[1] as number) - (a[1] as number))
                   .map(([servico, qtd]) => (
                     <div key={servico} className="flex items-center justify-between bg-zinc-950/50 p-3 rounded-xl border border-white/5">
                       <div className="flex items-center gap-3">

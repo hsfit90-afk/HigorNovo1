@@ -167,10 +167,10 @@ export default function AdminPage() {
           </div>
         ) : (
         <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-1 overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[800px]">
-              <thead>
-                <tr className="bg-zinc-900/80 text-zinc-400 text-sm uppercase tracking-wider border-b border-zinc-800">
+              <thead className="sticky top-0 z-10 shadow-sm">
+                <tr className="bg-zinc-900 text-zinc-400 text-sm uppercase tracking-wider border-b border-zinc-800">
                   <th className="p-4 font-bold rounded-tl-2xl">Data</th>
                   <th className="p-4 font-bold">Hora</th>
                   <th className="p-4 font-bold">Cliente</th>

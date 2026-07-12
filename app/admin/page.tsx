@@ -205,10 +205,23 @@ export default function AdminPage() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2 text-zinc-400 whitespace-nowrap">
-                        <Phone size={16} className="text-zinc-500" /> 
-                        {agendamento.cliente_telefone || '-'}
-                      </div>
+                      {agendamento.cliente_telefone ? (
+                        <a 
+                          href={`https://wa.me/55${agendamento.cliente_telefone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-zinc-400 hover:text-green-500 transition-colors whitespace-nowrap cursor-pointer"
+                          title="Chamar no WhatsApp"
+                        >
+                          <Phone size={16} className="text-zinc-500" /> 
+                          {agendamento.cliente_telefone}
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-2 text-zinc-400 whitespace-nowrap">
+                          <Phone size={16} className="text-zinc-500" /> 
+                          -
+                        </div>
+                      )}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2 text-blue-600/90 font-medium max-w-xs break-words">

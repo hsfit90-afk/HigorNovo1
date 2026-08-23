@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, X, Copy, Check, Crown, Gem, ArrowRight } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, X, Copy, Check, Crown, Gem, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import logoImg from './logo.jpeg';
@@ -852,9 +852,16 @@ export default function Home() {
             </button>
 
             <h3 className="text-xl font-black text-white text-center mb-2 pr-6">Pague o sinal para confirmar</h3>
-            <p className="text-zinc-400 text-sm text-center mb-6">
+            <p className="text-zinc-400 text-sm text-center mb-4">
               Para garantir seu horário, é necessário pagar um sinal de <span className="text-blue-500 font-bold">{VALOR_SINAL}</span> via Pix.
             </p>
+
+            <div className="mb-5 bg-yellow-500/10 border border-yellow-500/30 p-3.5 rounded-xl flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+              <p className="text-zinc-300 text-xs font-medium leading-relaxed">
+                <strong className="text-yellow-500">O sinal não é devolvido em caso de falta sem aviso prévio.</strong> Precisa cancelar? Avise pelo WhatsApp com antecedência.
+              </p>
+            </div>
 
             <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-3 mb-5">
               <QRCodeSVG value={PIX_PAYLOAD} size={200} bgColor="#ffffff" fgColor="#09090b" />

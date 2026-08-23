@@ -228,7 +228,38 @@ export default function Home() {
     });
   };
 
-  const iniciarAgendamento = () => {
+  // Assinante do plano com corte disponível no mês não paga o sinal do Pix.
+  const verificarAssinaturaAtiva = async (telefone: string): Promise<boolean> => {
+    const telefoneNormalizado = telefone.replace(/\D/g, '');
+    if (!telefoneNormalizado) return false;
+
+    const { data: assinante } = await supabase
+      .from('assinantes')
+      .select('id')
+      .eq('cliente_telefone', telefoneNormalizado)
+      .eq('ativo', true)
+      .maybeSingle();
+
+    if (!assinante) return false;
+
+    const anoMesAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date());
+    const [ano, mes] = anoMesAtual.split('-').map(Number);
+    const proximoMes = mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, '0')}`;
+
+    const { data: agendamentosDoMes } = await supabase
+      .from('agendamentos')
+      .select('cliente_telefone')
+      .gte('data', `${anoMesAtual}-01`)
+      .lt('data', `${proximoMes}-01`);
+
+    const cortesUsados = (agendamentosDoMes || []).filter(
+      (ag) => ag.cliente_telefone && ag.cliente_telefone.replace(/\D/g, '') === telefoneNormalizado
+    ).length;
+
+    return cortesUsados < 4;
+  };
+
+  const iniciarAgendamento = async () => {
     if (!isUserLoggedIn) {
       alert("Por favor, faça login ou cadastre-se para agendar seu horário.");
       router.push('/login');
@@ -240,7 +271,15 @@ export default function Home() {
       return;
     }
 
-    setMostrarModalSinal(true);
+    setLoadingAgendamento(true);
+    const temCorteDoPlanoDisponivel = await verificarAssinaturaAtiva(agendamento.cliente_telefone);
+
+    if (temCorteDoPlanoDisponivel) {
+      finalizarAgendamento();
+    } else {
+      setLoadingAgendamento(false);
+      setMostrarModalSinal(true);
+    }
   };
 
   const confirmarComSinalPago = () => {

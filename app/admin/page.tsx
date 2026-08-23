@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock, User, Phone, Scissors, Trash2, Home, BarChart3, TrendingUp, Megaphone, Send } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, Trash2, Home, BarChart3, TrendingUp, Megaphone, Send, Users, Crown, Gem } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -14,9 +14,13 @@ export default function AdminPage() {
   const [agendamentos, setAgendamentos] = useState<any[]>([]);
   const [historico, setHistorico] = useState<any[]>([]);
   const [todos, setTodos] = useState<any[]>([]);
-  const [abaAtiva, setAbaAtiva] = useState<'proximos' | 'historico' | 'estatisticas' | 'avisos'>('proximos');
+  const [abaAtiva, setAbaAtiva] = useState<'proximos' | 'historico' | 'estatisticas' | 'avisos' | 'assinantes'>('proximos');
   const [loading, setLoading] = useState(true);
   const [mensagemAviso, setMensagemAviso] = useState('');
+  const [assinantes, setAssinantes] = useState<any[]>([]);
+  const [subAbaPlano, setSubAbaPlano] = useState<'ouro' | 'diamante'>('ouro');
+  const [novoAssinanteNome, setNovoAssinanteNome] = useState('');
+  const [novoAssinanteTelefone, setNovoAssinanteTelefone] = useState('');
 
   useEffect(() => {
     const checkUser = async () => {
@@ -28,6 +32,7 @@ export default function AdminPage() {
         new URLSearchParams(window.location.search).get('admin_preview') === '1'
       ) {
         buscarAgendamentos();
+        buscarAssinantes();
         return;
       }
 
@@ -38,9 +43,15 @@ export default function AdminPage() {
         return;
       }
       buscarAgendamentos();
+      buscarAssinantes();
     };
     checkUser();
   }, []);
+
+  const buscarAssinantes = async () => {
+    const { data } = await supabase.from('assinantes').select('*').order('cliente_nome');
+    if (data) setAssinantes(data);
+  };
 
   const buscarAgendamentos = async () => {
     setLoading(true);
@@ -104,6 +115,52 @@ export default function AdminPage() {
   const linkWhatsAppAviso = (telefone: string) =>
     `https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagemAviso)}`;
 
+  // Conta quantos cortes esse telefone já usou no mês corrente (mês calendário,
+  // não semana corrida) — os 4 cortes do plano contam desde o dia 1 até o último dia do mês.
+  const contarCortesDoMes = (telefone: string) => {
+    const telefoneNormalizado = telefone.replace(/\D/g, '');
+    const anoMesAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date());
+    return todos.filter(ag =>
+      ag.cliente_telefone &&
+      ag.servico !== 'LOJA_FECHADA' &&
+      ag.cliente_telefone.replace(/\D/g, '') === telefoneNormalizado &&
+      ag.data?.startsWith(anoMesAtual)
+    ).length;
+  };
+
+  const adicionarAssinante = async () => {
+    if (!novoAssinanteNome.trim() || !novoAssinanteTelefone.trim()) {
+      alert('Preencha nome e telefone do assinante.');
+      return;
+    }
+    const { error } = await supabase.from('assinantes').insert([{
+      cliente_nome: novoAssinanteNome.trim(),
+      cliente_telefone: novoAssinanteTelefone.replace(/\D/g, ''),
+      plano: subAbaPlano,
+    }]);
+
+    if (error) {
+      if (error.code === '23505') {
+        alert('Já existe um assinante cadastrado com esse telefone.');
+      } else {
+        alert('Erro ao cadastrar assinante: ' + error.message);
+      }
+      return;
+    }
+    setNovoAssinanteNome('');
+    setNovoAssinanteTelefone('');
+    buscarAssinantes();
+  };
+
+  const removerAssinante = async (id: number) => {
+    if (window.confirm('Remover esse assinante? Ele deixa de ter os cortes do plano cobertos.')) {
+      await supabase.from('assinantes').delete().eq('id', id);
+      buscarAssinantes();
+    }
+  };
+
+  const assinantesDoPlano = assinantes.filter(a => a.plano === subAbaPlano);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 p-6 md:p-12 font-sans selection:bg-blue-600 selection:text-zinc-950">
       
@@ -153,6 +210,13 @@ export default function AdminPage() {
             <Megaphone size={18} />
             Avisar Clientes
           </button>
+          <button
+            onClick={() => setAbaAtiva('assinantes')}
+            className={`whitespace-nowrap flex-shrink-0 px-5 py-2.5 md:px-6 md:py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${abaAtiva === 'assinantes' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
+          >
+            <Users size={18} />
+            Assinantes
+          </button>
         </div>
 
         {abaAtiva === 'estatisticas' ? (
@@ -195,6 +259,95 @@ export default function AdminPage() {
                   ))}
               </div>
             </div>
+          </div>
+        ) : abaAtiva === 'assinantes' ? (
+          <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+              <Users size={20} className="text-blue-500" />
+              Clientes Assinantes
+            </h3>
+            <p className="text-zinc-400 text-sm mb-5">
+              Assinantes não pagam o sinal de R$10 nos primeiros 4 cortes do mês. Cadastre aqui depois de confirmar o pagamento do plano no InfinitePay.
+            </p>
+
+            <div className="flex gap-3 mb-6">
+              <button
+                onClick={() => setSubAbaPlano('ouro')}
+                className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold transition-all ${subAbaPlano === 'ouro' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
+              >
+                <Crown size={16} />
+                Plano Ouro
+              </button>
+              <button
+                onClick={() => setSubAbaPlano('diamante')}
+                className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold transition-all ${subAbaPlano === 'diamante' ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}
+              >
+                <Gem size={16} />
+                Plano Diamante
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+              <input
+                value={novoAssinanteNome}
+                onChange={(e) => setNovoAssinanteNome(e.target.value)}
+                placeholder="Nome do cliente"
+                className="bg-zinc-950/50 border border-zinc-800 p-3 rounded-xl text-white outline-none focus:border-blue-600 transition-all"
+              />
+              <div className="flex gap-2">
+                <input
+                  value={novoAssinanteTelefone}
+                  onChange={(e) => setNovoAssinanteTelefone(e.target.value)}
+                  placeholder="WhatsApp"
+                  className="flex-1 min-w-0 bg-zinc-950/50 border border-zinc-800 p-3 rounded-xl text-white outline-none focus:border-blue-600 transition-all"
+                />
+                <button
+                  onClick={adicionarAssinante}
+                  className="flex-shrink-0 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-bold px-5 rounded-xl transition-all"
+                >
+                  Adicionar
+                </button>
+              </div>
+            </div>
+
+            {assinantesDoPlano.length === 0 ? (
+              <div className="text-center py-10 text-zinc-500 font-bold flex flex-col items-center gap-3">
+                {subAbaPlano === 'ouro' ? <Crown size={40} className="text-zinc-800" /> : <Gem size={40} className="text-zinc-800" />}
+                Nenhum assinante do Plano {subAbaPlano === 'ouro' ? 'Ouro' : 'Diamante'} cadastrado.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {assinantesDoPlano.map((assinante) => {
+                  const cortes = contarCortesDoMes(assinante.cliente_telefone);
+                  return (
+                    <div
+                      key={assinante.id}
+                      className="flex items-center justify-between gap-3 bg-zinc-950/50 border border-white/5 p-3 rounded-xl"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <User size={16} className="text-zinc-500 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-white font-semibold text-sm truncate">{assinante.cliente_nome}</p>
+                          <p className="text-zinc-500 text-xs">{assinante.cliente_telefone}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-black border whitespace-nowrap ${cortes >= 4 ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-blue-600/10 text-blue-400 border-blue-500/20'}`}>
+                          {cortes}/4 cortes este mês
+                        </span>
+                        <button
+                          onClick={() => removerAssinante(assinante.id)}
+                          className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all"
+                          title="Remover assinante"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : abaAtiva === 'avisos' ? (
           <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-6 shadow-2xl">

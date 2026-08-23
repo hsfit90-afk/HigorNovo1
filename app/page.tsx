@@ -511,9 +511,41 @@ export default function Home() {
         </div>
       </nav>
 
+      <main className="relative z-10">
+      <section className="max-w-7xl mx-auto px-6 md:px-12 pt-10 pb-6 relative z-10">
+        <div className="w-full max-w-2xl flex flex-col gap-8 relative z-10">
+          <div className="inline-block px-4 py-1.5 rounded-full border border-blue-600/30 bg-blue-600/10 text-blue-600 text-xs font-black tracking-widest w-fit shadow-[0_0_20px_rgba(37,99,235,0.1)]">
+            EXCELÊNCIA EM BARBEARIA
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tight text-white drop-shadow-sm">
+            O seu estilo, <br/>
+            nossa obra de arte.
+          </h1>
+          
+          <p className="text-zinc-400 text-lg md:text-xl max-w-md leading-relaxed font-medium">
+            Uma experiência que combina a tradição clássica com as tendências modernas. Agende agora e eleve o seu visual com os melhores profissionais.
+          </p>
+
+          <div className="relative h-[300px] md:h-[450px] w-full max-w-xl rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group mt-4">
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent z-10 opacity-60"></div>
+            <Image src={donoImg} alt="Barbeiro" fill className="object-cover transition-transform duration-1000 group-hover:scale-110" />
+            <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.5)]">
+                <Scissors className="text-zinc-950" />
+              </div>
+              <div>
+                <p className="text-white font-bold text-lg leading-tight">Cortes Premium</p>
+                <p className="text-zinc-300 text-sm font-semibold">Técnicas Exclusivas</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* PLANOS DE MENSALIDADE */}
-      <section id="planos" className="max-w-7xl mx-auto px-6 md:px-12 pt-14 pb-6 relative z-10 scroll-mt-24">
-        <div className="text-center mb-10">
+      <section id="planos" className="max-w-7xl mx-auto px-6 md:px-12 py-14 relative z-10 scroll-mt-24">
+        <div className="text-center mb-14">
           <div className="inline-block px-4 py-1.5 rounded-full border border-blue-600/30 bg-blue-600/10 text-blue-600 text-xs font-black tracking-widest w-fit mb-5 shadow-[0_0_20px_rgba(37,99,235,0.1)]">
             ASSINATURA MENSAL
           </div>
@@ -585,40 +617,11 @@ export default function Home() {
         </div>
       </section>
 
-      <main className="flex flex-col xl:flex-row items-center justify-center p-6 md:p-12 gap-12 max-w-7xl mx-auto min-h-[calc(100vh-100px)]">
-        
-        <div className="w-full xl:w-1/2 flex flex-col gap-8 relative z-10">
-          <div className="inline-block px-4 py-1.5 rounded-full border border-blue-600/30 bg-blue-600/10 text-blue-600 text-xs font-black tracking-widest w-fit shadow-[0_0_20px_rgba(37,99,235,0.1)]">
-            EXCELÊNCIA EM BARBEARIA
-          </div>
-          
-          <h1 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tight text-white drop-shadow-sm">
-            O seu estilo, <br/>
-            nossa obra de arte.
-          </h1>
-          
-          <p className="text-zinc-400 text-lg md:text-xl max-w-md leading-relaxed font-medium">
-            Uma experiência que combina a tradição clássica com as tendências modernas. Agende agora e eleve o seu visual com os melhores profissionais.
-          </p>
-
-          <div className="relative h-[300px] md:h-[450px] w-full max-w-xl rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group mt-4">
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent z-10 opacity-60"></div>
-            <Image src={donoImg} alt="Barbeiro" fill className="object-cover transition-transform duration-1000 group-hover:scale-110" />
-            <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.5)]">
-                <Scissors className="text-zinc-950" />
-              </div>
-              <div>
-                <p className="text-white font-bold text-lg leading-tight">Cortes Premium</p>
-                <p className="text-zinc-300 text-sm font-semibold">Técnicas Exclusivas</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="w-full xl:w-1/2 max-w-lg relative z-10">
+      {/* AGENDAMENTO */}
+      <section className="max-w-7xl mx-auto px-6 md:px-12 pt-6 pb-16 relative z-10">
+        <div className="w-full max-w-lg mx-auto relative z-10">
           <div className="bg-zinc-900/40 backdrop-blur-3xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden">
-            
+
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-[50px]"></div>
 
             <h2 className="text-3xl font-black mb-8 flex items-center gap-3 relative z-10">
@@ -826,6 +829,7 @@ export default function Home() {
             )}
           </div>
         </div>
+      </section>
       </main>
 
       {/* MODAL DO SINAL VIA PIX - obrigatório antes de gravar o agendamento */}

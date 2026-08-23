@@ -21,14 +21,22 @@ const planos = [
   {
     nome: 'Plano Ouro',
     descricao: '4 cortes de cabelo por mês. Uso exclusivo para assinantes. Válido durante o ciclo mensal.',
+    precoOriginal: 'R$ 140,00',
     preco: 'R$ 110,00',
+    economia: 'R$ 30,00',
+    precoPorCorte: 'R$ 27,50 por corte',
+    destaque: false,
     link: 'https://invoice.infinitepay.io/plans/pietro_augusto/3zkBH7mg9P',
     icone: Crown,
   },
   {
     nome: 'Plano Diamante',
     descricao: '4 atendimentos por mês incluindo cabelo, barba e sobrancelha. Válido durante o ciclo mensal.',
+    precoOriginal: 'R$ 280,00',
     preco: 'R$ 210,00',
+    economia: 'R$ 70,00',
+    precoPorCorte: 'R$ 52,50 por atendimento',
+    destaque: true,
     link: 'https://invoice.infinitepay.io/plans/pietro_augusto/HZsHBKXlUK',
     icone: Gem,
   },
@@ -461,10 +469,16 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-2 md:gap-3">
+          <a
+            href="#planos"
+            className="hidden sm:flex items-center px-4 py-2 text-zinc-300 hover:text-blue-600 font-bold transition-all flex-shrink-0"
+          >
+            Planos
+          </a>
           {isAdmin && (
             <>
-              <button 
-                onClick={toggleStatusLoja} 
+              <button
+                onClick={toggleStatusLoja}
                 className={`flex items-center justify-center gap-2 w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 rounded-full font-bold transition-all border flex-shrink-0 ${
                   isLojaFechada 
                     ? 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500 hover:text-white'
@@ -496,6 +510,80 @@ export default function Home() {
           )}
         </div>
       </nav>
+
+      {/* PLANOS DE MENSALIDADE */}
+      <section id="planos" className="max-w-7xl mx-auto px-6 md:px-12 pt-14 pb-6 relative z-10 scroll-mt-24">
+        <div className="text-center mb-10">
+          <div className="inline-block px-4 py-1.5 rounded-full border border-blue-600/30 bg-blue-600/10 text-blue-600 text-xs font-black tracking-widest w-fit mb-5 shadow-[0_0_20px_rgba(37,99,235,0.1)]">
+            ASSINATURA MENSAL
+          </div>
+          <h2 className="text-4xl md:text-5xl font-black text-white">
+            Planos de Mensalidade
+          </h2>
+          <p className="text-zinc-400 text-lg mt-4 max-w-xl mx-auto">
+            Garanta seus cortes do mês por um preço fixo — sem pagar sinal a cada agendamento.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto items-stretch">
+          {planos.map((plano) => {
+            const Icone = plano.icone;
+            return (
+              <div
+                key={plano.nome}
+                className={`group relative rounded-[2rem] p-[1.5px] h-full transition-all duration-500 ${
+                  plano.destaque
+                    ? 'bg-gradient-to-b from-blue-500 via-blue-600/60 to-transparent shadow-[0_0_40px_rgba(37,99,235,0.3)]'
+                    : 'bg-gradient-to-b from-blue-600/50 via-blue-600/10 to-transparent hover:from-blue-500 hover:via-blue-600/40'
+                }`}
+              >
+                {plano.destaque && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 bg-blue-600 text-zinc-950 text-xs font-black tracking-wider px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.5)] whitespace-nowrap">
+                    MAIS ESCOLHIDO
+                  </div>
+                )}
+
+                <div className="bg-zinc-950 rounded-[calc(2rem-1.5px)] p-8 h-full flex flex-col items-center text-center gap-4 relative overflow-hidden transition-transform duration-500 group-hover:-translate-y-2">
+
+                  <div className="absolute top-[-30%] right-[-20%] w-48 h-48 bg-blue-600/20 blur-[70px] rounded-full transition-all duration-500 group-hover:bg-blue-500/30"></div>
+                  <div className="absolute bottom-[-30%] left-[-20%] w-40 h-40 bg-blue-600/10 blur-[60px] rounded-full"></div>
+
+                  <div className="relative z-10 w-20 h-20 rounded-full bg-blue-600/10 flex items-center justify-center border border-blue-600/30 shadow-[0_0_30px_rgba(37,99,235,0.25)] transition-all duration-500 group-hover:scale-110 group-hover:shadow-[0_0_45px_rgba(37,99,235,0.5)]">
+                    <Icone className="text-blue-500" size={36} />
+                  </div>
+
+                  <h3 className="text-2xl font-black text-white relative z-10">{plano.nome}</h3>
+                  <p className="text-zinc-400 text-sm relative z-10 max-w-[240px]">
+                    {plano.descricao}
+                  </p>
+
+                  <div className="relative z-10 flex flex-col items-center mt-1">
+                    <span className="text-zinc-500 line-through text-sm font-bold">{plano.precoOriginal}</span>
+                    <p className="text-3xl font-black text-white leading-tight">
+                      {plano.preco}
+                      <span className="text-blue-500 text-sm font-bold">/mensal</span>
+                    </p>
+                    <p className="text-zinc-500 text-xs font-semibold mt-1">{plano.precoPorCorte}</p>
+                    <span className="mt-3 bg-green-500/10 text-green-500 border border-green-500/20 px-3 py-1 rounded-lg text-xs font-black">
+                      Economize {plano.economia}/mês
+                    </span>
+                  </div>
+
+                  <a
+                    href={plano.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative z-10 w-full flex items-center justify-center gap-2 py-3.5 mt-auto bg-blue-600 text-zinc-950 font-black rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:bg-blue-500 hover:shadow-[0_0_35px_rgba(37,99,235,0.55)] hover:-translate-y-0.5"
+                  >
+                    Assinar Agora
+                    <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <main className="flex flex-col xl:flex-row items-center justify-center p-6 md:p-12 gap-12 max-w-7xl mx-auto min-h-[calc(100vh-100px)]">
         
@@ -790,7 +878,7 @@ export default function Home() {
       )}
 
       {/* HISTÓRIA SECTION */}
-      <section className="max-w-7xl mx-auto px-6 md:px-12 py-20 relative z-10 mt-12">
+      <section className="max-w-7xl mx-auto px-6 md:px-12 py-20 relative z-10">
         <div className="flex flex-col md:flex-row gap-12 items-center">
           <div className="w-full md:w-1/2 flex flex-col gap-6">
             <h2 className="text-4xl md:text-5xl font-black text-white flex items-center gap-4">
@@ -807,7 +895,7 @@ export default function Home() {
               Agende seu horário e saia Novo de Novo.
             </p>
           </div>
-          
+
           <div className="w-full md:w-1/2 bg-zinc-900/40 backdrop-blur-3xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative">
             <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-blue-600/20 blur-[30px] rounded-full"></div>
             <p className="text-zinc-300 text-lg leading-relaxed mb-6 font-medium italic">
@@ -820,64 +908,6 @@ export default function Home() {
               Aqui, cada atendimento é realizado com horário marcado, proporcionando mais conforto, organização e dedicação para que você tenha a melhor experiência possível.
             </p>
           </div>
-        </div>
-      </section>
-
-      {/* PLANOS DE MENSALIDADE */}
-      <section className="max-w-7xl mx-auto px-6 md:px-12 py-20 relative z-10">
-        <div className="text-center mb-14">
-          <div className="inline-block px-4 py-1.5 rounded-full border border-blue-600/30 bg-blue-600/10 text-blue-600 text-xs font-black tracking-widest w-fit mb-5 shadow-[0_0_20px_rgba(37,99,235,0.1)]">
-            ASSINATURA MENSAL
-          </div>
-          <h2 className="text-4xl md:text-5xl font-black text-white flex items-center justify-center gap-4">
-            <span className="w-12 h-2 bg-blue-600 rounded-full inline-block"></span>
-            Planos de Mensalidade
-          </h2>
-          <p className="text-zinc-400 text-lg mt-4 max-w-xl mx-auto">
-            Assine um plano e economize nos seus cortes ao longo do mês.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-          {planos.map((plano) => {
-            const Icone = plano.icone;
-            return (
-              <div
-                key={plano.nome}
-                className="group relative rounded-[2rem] p-[1.5px] bg-gradient-to-b from-blue-600/50 via-blue-600/10 to-transparent hover:from-blue-500 hover:via-blue-600/40 transition-all duration-500"
-              >
-                <div className="bg-zinc-950 rounded-[calc(2rem-1.5px)] p-8 h-full flex flex-col items-center text-center gap-4 relative overflow-hidden transition-transform duration-500 group-hover:-translate-y-2">
-
-                  <div className="absolute top-[-30%] right-[-20%] w-48 h-48 bg-blue-600/20 blur-[70px] rounded-full transition-all duration-500 group-hover:bg-blue-500/30"></div>
-                  <div className="absolute bottom-[-30%] left-[-20%] w-40 h-40 bg-blue-600/10 blur-[60px] rounded-full"></div>
-
-                  <div className="relative z-10 w-20 h-20 rounded-full bg-blue-600/10 flex items-center justify-center border border-blue-600/30 shadow-[0_0_30px_rgba(37,99,235,0.25)] transition-all duration-500 group-hover:scale-110 group-hover:shadow-[0_0_45px_rgba(37,99,235,0.5)]">
-                    <Icone className="text-blue-500" size={36} />
-                  </div>
-
-                  <h3 className="text-2xl font-black text-white relative z-10">{plano.nome}</h3>
-                  <p className="text-zinc-400 text-sm relative z-10 max-w-[240px]">
-                    {plano.descricao}
-                  </p>
-
-                  <p className="relative z-10 text-3xl font-black text-white">
-                    {plano.preco}
-                    <span className="text-blue-500 text-sm font-bold">/mensal</span>
-                  </p>
-
-                  <a
-                    href={plano.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="relative z-10 w-full flex items-center justify-center gap-2 py-3.5 mt-2 bg-blue-600 text-zinc-950 font-black rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:bg-blue-500 hover:shadow-[0_0_35px_rgba(37,99,235,0.55)] hover:-translate-y-0.5"
-                  >
-                    Assinar Agora
-                    <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-                  </a>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </section>
 

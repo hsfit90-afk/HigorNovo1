@@ -243,21 +243,28 @@ export default function Home() {
 
     const { data: assinante } = await supabase
       .from('assinantes')
-      .select('id')
+      .select('id, criado_em')
       .eq('cliente_telefone', telefoneNormalizado)
       .eq('ativo', true)
       .maybeSingle();
 
     if (!assinante) return false;
 
+    // Os 4 cortes contam a partir do dia 1 do mês, OU da data em que a pessoa
+    // virou assinante, o que for mais tarde — evita contar cortes avulsos
+    // pagos antes da assinatura começar.
     const anoMesAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date());
     const [ano, mes] = anoMesAtual.split('-').map(Number);
     const proximoMes = mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, '0')}`;
 
+    const primeiroDiaMes = `${anoMesAtual}-01`;
+    const dataAssinatura = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(assinante.criado_em));
+    const dataInicioContagem = dataAssinatura > primeiroDiaMes ? dataAssinatura : primeiroDiaMes;
+
     const { data: agendamentosDoMes } = await supabase
       .from('agendamentos')
       .select('cliente_telefone')
-      .gte('data', `${anoMesAtual}-01`)
+      .gte('data', dataInicioContagem)
       .lt('data', `${proximoMes}-01`);
 
     const cortesUsados = (agendamentosDoMes || []).filter(

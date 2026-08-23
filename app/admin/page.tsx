@@ -116,15 +116,22 @@ export default function AdminPage() {
     `https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagemAviso)}`;
 
   // Conta quantos cortes esse telefone já usou no mês corrente (mês calendário,
-  // não semana corrida) — os 4 cortes do plano contam desde o dia 1 até o último dia do mês.
-  const contarCortesDoMes = (telefone: string) => {
-    const telefoneNormalizado = telefone.replace(/\D/g, '');
+  // não semana corrida) — os 4 cortes do plano contam desde o dia 1 do mês,
+  // OU desde a data em que a pessoa virou assinante, o que for mais tarde.
+  // Isso evita contar cortes pagos avulsos feitos antes da assinatura.
+  const contarCortesDoMes = (assinante: any) => {
+    const telefoneNormalizado = assinante.cliente_telefone.replace(/\D/g, '');
     const anoMesAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date());
+    const primeiroDiaMes = `${anoMesAtual}-01`;
+    const dataAssinatura = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(assinante.criado_em));
+    const dataInicioContagem = dataAssinatura > primeiroDiaMes ? dataAssinatura : primeiroDiaMes;
+
     return todos.filter(ag =>
       ag.cliente_telefone &&
       ag.servico !== 'LOJA_FECHADA' &&
       ag.cliente_telefone.replace(/\D/g, '') === telefoneNormalizado &&
-      ag.data?.startsWith(anoMesAtual)
+      ag.data?.startsWith(anoMesAtual) &&
+      ag.data >= dataInicioContagem
     ).length;
   };
 
@@ -318,7 +325,7 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {assinantesDoPlano.map((assinante) => {
-                  const cortes = contarCortesDoMes(assinante.cliente_telefone);
+                  const cortes = contarCortesDoMes(assinante);
                   return (
                     <div
                       key={assinante.id}

@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, X, Copy, Check, Crown, Gem, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { QRCodeSVG } from 'qrcode.react';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
 
@@ -13,8 +12,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Pix estático (InfinitePay) - sinal fixo para garantir o agendamento
-const PIX_PAYLOAD = "00020101021226620014BR.GOV.BCB.PIX0114474953780001770222Pagamento pietro_augus520400005303986540510.005802BR5925PIETRO AUGUSTO DA SILVA P6015TABOAO DA SERRA62290525QRCCxNN20cBOVj3DfEd3WXpAx63045C38";
+// Sinal cobrado via API de Checkout da InfinitePay (ver app/api/pagamento/criar).
+// DESLIGADO até confirmar o INFINITEPAY_HANDLE e rodar a migração
+// supabase/adicionar_pagamento_sinal.sql - enquanto false, agenda sem cobrar
+// sinal (igual ao fluxo de assinante). Troque pra true quando estiver pronto.
+const SINAL_ATIVO = false;
 const VALOR_SINAL = "R$ 10,00";
 
 const planos = [
@@ -75,8 +77,6 @@ export default function Home() {
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [isLojaFechada, setIsLojaFechada] = useState(false);
-  const [mostrarModalSinal, setMostrarModalSinal] = useState(false);
-  const [pixCopiado, setPixCopiado] = useState(false);
 
   useEffect(() => {
     const checkStatusLoja = async () => {
@@ -147,12 +147,6 @@ export default function Home() {
       setIsUserLoggedIn(true);
       setIsAdmin(true);
     }
-
-    // Acesse http://localhost:3000/?debug=sinal para abrir o modal do sinal Pix
-    // direto, sem precisar logar nem ter o Supabase no ar.
-    if (params.get('debug') === 'sinal') {
-      setMostrarModalSinal(true);
-    }
   }, []);
 
   useEffect(() => {
@@ -209,17 +203,31 @@ export default function Home() {
       for (let h = startHour; h < endHour; h++) {
         slots.push(`${h.toString().padStart(2, '0')}:00`);
       }
-      setHorariosDisponiveis(slots);
-      setAgendamento(prev => ({ ...prev, hora: '' })); 
+
+      // Se a data escolhida é hoje, tira da lista os horários que já passaram.
+      const agora = new Date();
+      const dataAtualSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);
+      const horaAtualSP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(agora);
+      const slotsFuturos = agendamento.data === dataAtualSP ? slots.filter(hora => hora >= horaAtualSP) : slots;
+
+      setHorariosDisponiveis(slotsFuturos);
+      setAgendamento(prev => ({ ...prev, hora: '' }));
     }
   }, [agendamento.data]);
 
   const buscarHorariosOcupados = async (data: string) => {
+    // Libera horários que ficaram reservados por um checkout nunca concluído.
+    await supabase
+      .from('agendamentos')
+      .delete()
+      .eq('status', 'aguardando_pagamento')
+      .lt('expira_em', new Date().toISOString());
+
     const { data: agendamentos } = await supabase
       .from('agendamentos')
       .select('hora')
       .eq('data', data);
-    
+
     if (agendamentos) {
       setHorariosOcupados(agendamentos.map(a => a.hora));
     }
@@ -264,6 +272,7 @@ export default function Home() {
     const { data: agendamentosDoMes } = await supabase
       .from('agendamentos')
       .select('cliente_telefone')
+      .neq('status', 'aguardando_pagamento')
       .gte('data', dataInicioContagem)
       .lt('data', `${proximoMes}-01`);
 
@@ -289,26 +298,47 @@ export default function Home() {
     setLoadingAgendamento(true);
     const temCorteDoPlanoDisponivel = await verificarAssinaturaAtiva(agendamento.cliente_telefone);
 
-    if (temCorteDoPlanoDisponivel) {
+    if (temCorteDoPlanoDisponivel || !SINAL_ATIVO) {
       finalizarAgendamento();
     } else {
-      setLoadingAgendamento(false);
-      setMostrarModalSinal(true);
+      await pagarSinalEAgendar();
     }
   };
 
-  const confirmarComSinalPago = () => {
-    setMostrarModalSinal(false);
-    finalizarAgendamento();
-  };
+  // Cliente sem corte de plano disponível: cria a reserva (aguardando
+  // pagamento) e manda pro checkout de verdade da InfinitePay. O agendamento
+  // só é confirmado depois que o pagamento é verificado no servidor
+  // (ver app/api/pagamento/criar e app/agendamento/retorno).
+  const pagarSinalEAgendar = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const servicosFormatados = agendamento.servicosSelecionados.join(' + ');
 
-  const copiarCodigoPix = async () => {
     try {
-      await navigator.clipboard.writeText(PIX_PAYLOAD);
-      setPixCopiado(true);
-      setTimeout(() => setPixCopiado(false), 2000);
+      const resposta = await fetch('/api/pagamento/criar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          servico: servicosFormatados,
+          data: agendamento.data,
+          hora: agendamento.hora,
+          cliente_nome: agendamento.cliente_nome,
+          cliente_telefone: agendamento.cliente_telefone,
+          user_id: session?.user?.id,
+        }),
+      });
+      const resultado = await resposta.json();
+
+      if (!resposta.ok) {
+        alert(resultado.error || 'Não foi possível iniciar o pagamento do sinal.');
+        if (resposta.status === 409) buscarHorariosOcupados(agendamento.data);
+        setLoadingAgendamento(false);
+        return;
+      }
+
+      window.location.href = resultado.checkoutUrl;
     } catch {
-      alert('Não foi possível copiar automaticamente. Selecione o código Pix manualmente.');
+      alert('Não foi possível conectar com o servidor de pagamento. Tente novamente.');
+      setLoadingAgendamento(false);
     }
   };
 
@@ -804,6 +834,22 @@ export default function Home() {
               </div>
             </div>
             
+            {/* AVISO DO SINAL - só aparece quando SINAL_ATIVO estiver ligado */}
+            {SINAL_ATIVO && (
+              <div className="mb-4 relative z-10 bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl flex items-start gap-3">
+                <div className="mt-0.5 text-blue-500">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <p className="text-blue-400 font-bold text-sm uppercase tracking-wider mb-1">Sinal para confirmar</p>
+                  <p className="text-zinc-400 text-sm font-medium">
+                    Se você não é assinante de um plano, será cobrado um sinal de <strong className="text-blue-400">{VALOR_SINAL}</strong> via InfinitePay para garantir o horário.
+                    Você será redirecionado para pagar com segurança. <strong>O sinal não é devolvido em caso de falta sem aviso prévio.</strong>
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* AVISO DE TOLERÂNCIA */}
             <div className="mb-6 relative z-10 bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl flex items-start gap-3">
               <div className="mt-0.5 text-yellow-500">
@@ -838,62 +884,6 @@ export default function Home() {
         </div>
       </section>
       </main>
-
-      {/* MODAL DO SINAL VIA PIX - obrigatório antes de gravar o agendamento */}
-      {mostrarModalSinal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-zinc-900 border border-white/10 rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl relative">
-            <button
-              onClick={() => setMostrarModalSinal(false)}
-              className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors"
-              aria-label="Fechar"
-            >
-              <X size={22} />
-            </button>
-
-            <h3 className="text-xl font-black text-white text-center mb-2 pr-6">Pague o sinal para confirmar</h3>
-            <p className="text-zinc-400 text-sm text-center mb-4">
-              Para garantir seu horário, é necessário pagar um sinal de <span className="text-blue-500 font-bold">{VALOR_SINAL}</span> via Pix.
-            </p>
-
-            <div className="mb-5 bg-yellow-500/10 border border-yellow-500/30 p-3.5 rounded-xl flex items-start gap-2.5">
-              <AlertTriangle size={18} className="text-yellow-500 flex-shrink-0 mt-0.5" />
-              <p className="text-zinc-300 text-xs font-medium leading-relaxed">
-                <strong className="text-yellow-500">O sinal não é devolvido em caso de falta sem aviso prévio.</strong> Precisa cancelar? Avise pelo WhatsApp com antecedência.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-3 mb-5">
-              <QRCodeSVG value={PIX_PAYLOAD} size={200} bgColor="#ffffff" fgColor="#09090b" />
-              <p className="text-zinc-900 font-bold text-sm text-center leading-tight">PIETRO AUGUSTO DA SILVA PIRES</p>
-              <p className="text-zinc-500 text-xs">Pix • {VALOR_SINAL}</p>
-            </div>
-
-            <button
-              onClick={copiarCodigoPix}
-              className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-3 rounded-xl font-bold text-sm mb-5 transition-all"
-            >
-              {pixCopiado ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
-              {pixCopiado ? 'Código copiado!' : 'Copiar código Pix'}
-            </button>
-
-            <button
-              onClick={confirmarComSinalPago}
-              disabled={loadingAgendamento}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-black rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] disabled:opacity-50 mb-3"
-            >
-              {loadingAgendamento ? 'Salvando...' : 'Já paguei, confirmar agendamento'}
-            </button>
-
-            <button
-              onClick={() => setMostrarModalSinal(false)}
-              className="w-full py-2 text-zinc-500 hover:text-zinc-300 text-sm font-medium transition-all"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* HISTÓRIA SECTION */}
       <section className="max-w-7xl mx-auto px-6 md:px-12 py-20 relative z-10">

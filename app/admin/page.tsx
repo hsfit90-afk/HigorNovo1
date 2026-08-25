@@ -63,6 +63,9 @@ export default function AdminPage() {
     const { data } = await supabase
       .from('agendamentos')
       .select('*')
+      // Reservas com sinal ainda não pago não são agendamentos de verdade
+      // (ver app/api/pagamento/criar) - não mostra pro barbeiro até confirmar.
+      .neq('status', 'aguardando_pagamento')
       .order('data', { ascending: false })
       .order('hora', { ascending: false });
       

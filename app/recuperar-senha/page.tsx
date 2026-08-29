@@ -12,7 +12,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function RecuperarSenha() {
   const router = useRouter();
-  const [modo, setModo] = useState<'pedir' | 'redefinir'>('pedir');
+  const [modo, setModo] = useState<'verificando' | 'pedir' | 'redefinir'>('verificando');
   const [email, setEmail] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [showSenha, setShowSenha] = useState(false);
@@ -20,8 +20,47 @@ export default function RecuperarSenha() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    // Quando o cliente clica no link do email, o Supabase abre esta mesma página
-    // já autenticado numa "sessão de recuperação" e dispara este evento.
+    // Quando o cliente clica no link do email, o Supabase manda ele de volta
+    // pra cá com dados na URL. Dependendo da configuração do projeto, isso
+    // chega de formas diferentes - checamos todas antes de decidir a tela:
+    const processarLinkDeRecuperacao = async () => {
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const query = new URLSearchParams(window.location.search);
+
+      // Link expirado ou já usado (ex: escaneado automaticamente pelo
+      // provedor de email antes do clique real) - a Supabase volta com erro.
+      if (hash.get('error') || query.get('error')) {
+        setMessage('Este link de recuperação expirou ou já foi usado. Peça um novo abaixo.');
+        setModo('pedir');
+        return;
+      }
+
+      // Fluxo PKCE: chega como ?code=... e precisa trocar por uma sessão.
+      const code = query.get('code');
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        setModo(error ? 'pedir' : 'redefinir');
+        if (error) setMessage('Este link de recuperação expirou ou já foi usado. Peça um novo abaixo.');
+        return;
+      }
+
+      // Fluxo implícito: chega como #access_token=...&type=recovery.
+      if (hash.get('type') === 'recovery') {
+        setModo('redefinir');
+        return;
+      }
+
+      // Nenhum sinal de link na URL ainda: pode ser que o supabase-js já
+      // tenha processado e limpo a URL antes deste efeito rodar - confere
+      // se já existe uma sessão de recuperação ativa antes de desistir.
+      const { data: { session } } = await supabase.auth.getSession();
+      setModo(session ? 'redefinir' : 'pedir');
+    };
+
+    processarLinkDeRecuperacao();
+
+    // Cobre o caso do supabase-js ainda estar processando a URL quando o
+    // efeito acima rodou - o evento chega um instante depois.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setModo('redefinir');
@@ -72,7 +111,9 @@ export default function RecuperarSenha() {
           </div>
         </div>
 
-        {modo === 'pedir' ? (
+        {modo === 'verificando' ? (
+          <p className="text-zinc-400 text-center text-sm py-8">Verificando seu link…</p>
+        ) : modo === 'pedir' ? (
           <>
             <h1 className="text-3xl font-bold text-zinc-50 mb-4 text-center">Recuperar Senha</h1>
             <p className="text-zinc-400 text-center mb-6 text-sm">

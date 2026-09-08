@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { VALOR_SINAL_REAIS } from '../../../../lib/servicos';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const VALOR_SINAL_CENTAVOS = 1000; // R$ 10,00
+// O sinal é abatido do valor do serviço no dia do atendimento - só esse
+// valor fixo é cobrado agora via InfinitePay, o restante é pago na hora.
+const VALOR_SINAL_CENTAVOS = VALOR_SINAL_REAIS * 100;
 const MINUTOS_PARA_EXPIRAR = 15;
 
 export async function POST(request: Request) {

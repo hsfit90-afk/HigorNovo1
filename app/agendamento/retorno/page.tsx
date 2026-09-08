@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../../../lib/servicos';
 
 const NUMERO_BARBEIRO = '5511953676910';
 const MAX_TENTATIVAS = 10;
@@ -68,9 +69,14 @@ function RetornoConteudo() {
   const linkWhatsApp = () => {
     if (!agendamento) return '#';
     const dataFormatada = agendamento.data.split('-').reverse().join('/');
-    const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${agendamento.servico}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A💰 *Sinal:* Pago via InfinitePay%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
+    const totalServico = calcularTotalServicos(agendamento.servico);
+    const restante = Math.max(totalServico - VALOR_SINAL_REAIS, 0);
+    const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${agendamento.servico}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A💰 *Valor do serviço:* ${formatarReais(totalServico)}%0A✅ *Sinal pago via InfinitePay:* ${formatarReais(VALOR_SINAL_REAIS)}%0A💵 *Restante no atendimento:* ${formatarReais(restante)}%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
     return `https://wa.me/${NUMERO_BARBEIRO}?text=${texto}`;
   };
+
+  const totalServico = agendamento ? calcularTotalServicos(agendamento.servico) : 0;
+  const restante = Math.max(totalServico - VALOR_SINAL_REAIS, 0);
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
@@ -87,9 +93,25 @@ function RetornoConteudo() {
           <>
             <ShieldCheck className="mx-auto mb-4 text-green-500" size={40} />
             <h1 className="text-white font-black text-xl mb-2">Agendamento confirmado!</h1>
-            <p className="text-zinc-400 text-sm mb-6">
+            <p className="text-zinc-400 text-sm mb-4">
               {agendamento.servico} — {agendamento.data.split('-').reverse().join('/')} às {agendamento.hora}
             </p>
+
+            <div className="mb-6 bg-zinc-950/60 border border-white/10 rounded-xl p-4 text-sm space-y-1.5 text-left">
+              <div className="flex justify-between text-zinc-400">
+                <span>Valor do serviço</span>
+                <span className="font-bold text-zinc-300">{formatarReais(totalServico)}</span>
+              </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Sinal pago</span>
+                <span className="font-bold text-green-500">{formatarReais(VALOR_SINAL_REAIS)}</span>
+              </div>
+              <div className="flex justify-between text-white pt-1.5 border-t border-white/10">
+                <span className="font-bold">Restante no atendimento</span>
+                <span className="font-bold">{formatarReais(restante)}</span>
+              </div>
+            </div>
+
             <a
               href={linkWhatsApp()}
               target="_blank"

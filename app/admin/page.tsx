@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock, User, Phone, Scissors, Trash2, Home, BarChart3, TrendingUp, Megaphone, Send, Users, Crown, Gem } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, Trash2, Home, BarChart3, TrendingUp, Megaphone, Send, Users, Crown, Gem, Plus, Minus } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -118,24 +118,30 @@ export default function AdminPage() {
   const linkWhatsAppAviso = (telefone: string) =>
     `https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagemAviso)}`;
 
-  // Conta quantos cortes esse telefone já usou no mês corrente (mês calendário,
-  // não semana corrida) — os 4 cortes do plano contam desde o dia 1 do mês,
-  // OU desde a data em que a pessoa virou assinante, o que for mais tarde.
-  // Isso evita contar cortes pagos avulsos feitos antes da assinatura.
-  const contarCortesDoMes = (assinante: any) => {
-    const telefoneNormalizado = assinante.cliente_telefone.replace(/\D/g, '');
-    const anoMesAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date());
-    const primeiroDiaMes = `${anoMesAtual}-01`;
-    const dataAssinatura = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(assinante.criado_em));
-    const dataInicioContagem = dataAssinatura > primeiroDiaMes ? dataAssinatura : primeiroDiaMes;
+  const mesAtualSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date());
 
-    return todos.filter(ag =>
-      ag.cliente_telefone &&
-      ag.servico !== 'LOJA_FECHADA' &&
-      ag.cliente_telefone.replace(/\D/g, '') === telefoneNormalizado &&
-      ag.data?.startsWith(anoMesAtual) &&
-      ag.data >= dataInicioContagem
-    ).length;
+  // O barbeiro marca manualmente cada corte usado do plano (botão "+1 corte"
+  // na lista abaixo) - evita depender de casar telefone com agendamentos.
+  // Se o contador for de um mês anterior, mostra 0 (o reset de verdade só
+  // acontece quando o barbeiro marca o primeiro corte do mês novo).
+  const cortesDoMesAtual = (assinante: any) =>
+    assinante.cortes_mes_referencia === mesAtualSP() ? (assinante.cortes_usados || 0) : 0;
+
+  const registrarCorte = async (assinante: any, delta: 1 | -1) => {
+    const anoMesAtual = mesAtualSP();
+    const atual = assinante.cortes_mes_referencia === anoMesAtual ? (assinante.cortes_usados || 0) : 0;
+    const novoValor = Math.max(0, atual + delta);
+
+    const { error } = await supabase
+      .from('assinantes')
+      .update({ cortes_usados: novoValor, cortes_mes_referencia: anoMesAtual })
+      .eq('id', assinante.id);
+
+    if (error) {
+      alert('Erro ao atualizar cortes: ' + error.message);
+      return;
+    }
+    buscarAssinantes();
   };
 
   const adicionarAssinante = async () => {
@@ -278,6 +284,7 @@ export default function AdminPage() {
             </h3>
             <p className="text-zinc-400 text-sm mb-5">
               Assinantes não pagam o sinal de R$10 nos primeiros 4 cortes do mês. Cadastre aqui depois de confirmar o pagamento do plano no InfinitePay.
+              Depois de cada atendimento, clique em <strong className="text-blue-400">"+ Corte"</strong> pra marcar - o contador zera sozinho no mês seguinte.
             </p>
 
             <div className="flex gap-3 mb-6">
@@ -328,11 +335,11 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {assinantesDoPlano.map((assinante) => {
-                  const cortes = contarCortesDoMes(assinante);
+                  const cortes = cortesDoMesAtual(assinante);
                   return (
                     <div
                       key={assinante.id}
-                      className="flex items-center justify-between gap-3 bg-zinc-950/50 border border-white/5 p-3 rounded-xl"
+                      className="flex items-center justify-between gap-3 bg-zinc-950/50 border border-white/5 p-3 rounded-xl flex-wrap"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <User size={16} className="text-zinc-500 flex-shrink-0" />
@@ -342,9 +349,25 @@ export default function AdminPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => registrarCorte(assinante, -1)}
+                          disabled={cortes === 0}
+                          title="Desfazer último corte marcado"
+                          className="p-1.5 bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Minus size={14} />
+                        </button>
                         <span className={`px-3 py-1.5 rounded-lg text-xs font-black border whitespace-nowrap ${cortes >= 4 ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-blue-600/10 text-blue-400 border-blue-500/20'}`}>
                           {cortes}/4 cortes este mês
                         </span>
+                        <button
+                          onClick={() => registrarCorte(assinante, 1)}
+                          disabled={cortes >= 4}
+                          title="Marcar +1 corte usado"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-zinc-950 text-xs font-black rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Plus size={14} /> Corte
+                        </button>
                         <button
                           onClick={() => removerAssinante(assinante.id)}
                           className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all"

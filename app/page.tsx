@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { servicos, calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../lib/servicos';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
 
@@ -13,10 +14,9 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Sinal cobrado via API de Checkout da InfinitePay (ver app/api/pagamento/criar).
-// DESLIGADO até confirmar o INFINITEPAY_HANDLE e rodar a migração
-// supabase/adicionar_pagamento_sinal.sql - enquanto false, agenda sem cobrar
-// sinal (igual ao fluxo de assinante). Troque pra true quando estiver pronto.
-const SINAL_ATIVO = false;
+// Handle confirmado (pietro_augusto) e migração supabase/adicionar_pagamento_sinal.sql
+// já rodada - ligado.
+const SINAL_ATIVO = true;
 const VALOR_SINAL = "R$ 10,00";
 
 const planos = [
@@ -42,21 +42,6 @@ const planos = [
     link: 'https://invoice.infinitepay.io/plans/pietro_augusto/HZsHBKXlUK',
     icone: Gem,
   },
-];
-
-const servicos = [
-  { nome: 'Pezinho', preco: 'R$ 15', categoria: 'Básico' },
-  { nome: 'Sobrancelha', preco: 'R$ 10', categoria: 'Básico' },
-  { nome: 'Bigode', preco: 'R$ 10', categoria: 'Básico' },
-  { nome: 'Sobrancelha e Bigode', preco: 'R$ 15', categoria: 'Básico' },
-  { nome: 'Barba', preco: 'R$ 25', categoria: 'Básico' },
-  { nome: 'Cabelo', preco: 'R$ 35', categoria: 'Básico' },
-  { nome: 'Cabelo e Barba', preco: 'R$ 50', categoria: 'Básico' },
-  { nome: 'Platinado', preco: 'R$ 100', categoria: 'Químicas' },
-  { nome: 'Luzes', preco: 'R$ 70', categoria: 'Químicas' },
-  { nome: 'Alisante', preco: 'R$ 40', categoria: 'Químicas' },
-  { nome: 'Hidratação', preco: 'R$ 30', categoria: 'Químicas' },
-  { nome: 'Pigmentação', preco: 'R$ 20', categoria: 'Químicas' },
 ];
 
 export default function Home() {
@@ -245,40 +230,24 @@ export default function Home() {
   };
 
   // Assinante do plano com corte disponível no mês não paga o sinal do Pix.
+  // Quem controla quantos cortes já foram usados é o barbeiro, marcando
+  // "+ Corte" no painel admin depois de cada atendimento (ver app/admin) -
+  // evita depender de casar o telefone do agendamento com o do cadastro.
   const verificarAssinaturaAtiva = async (telefone: string): Promise<boolean> => {
     const telefoneNormalizado = telefone.replace(/\D/g, '');
     if (!telefoneNormalizado) return false;
 
     const { data: assinante } = await supabase
       .from('assinantes')
-      .select('id, criado_em')
+      .select('cortes_usados, cortes_mes_referencia')
       .eq('cliente_telefone', telefoneNormalizado)
       .eq('ativo', true)
       .maybeSingle();
 
     if (!assinante) return false;
 
-    // Os 4 cortes contam a partir do dia 1 do mês, OU da data em que a pessoa
-    // virou assinante, o que for mais tarde — evita contar cortes avulsos
-    // pagos antes da assinatura começar.
     const anoMesAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date());
-    const [ano, mes] = anoMesAtual.split('-').map(Number);
-    const proximoMes = mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, '0')}`;
-
-    const primeiroDiaMes = `${anoMesAtual}-01`;
-    const dataAssinatura = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(assinante.criado_em));
-    const dataInicioContagem = dataAssinatura > primeiroDiaMes ? dataAssinatura : primeiroDiaMes;
-
-    const { data: agendamentosDoMes } = await supabase
-      .from('agendamentos')
-      .select('cliente_telefone')
-      .neq('status', 'aguardando_pagamento')
-      .gte('data', dataInicioContagem)
-      .lt('data', `${proximoMes}-01`);
-
-    const cortesUsados = (agendamentosDoMes || []).filter(
-      (ag) => ag.cliente_telefone && ag.cliente_telefone.replace(/\D/g, '') === telefoneNormalizado
-    ).length;
+    const cortesUsados = assinante.cortes_mes_referencia === anoMesAtual ? (assinante.cortes_usados || 0) : 0;
 
     return cortesUsados < 4;
   };
@@ -844,8 +813,29 @@ export default function Home() {
                   <p className="text-blue-400 font-bold text-sm uppercase tracking-wider mb-1">Sinal para confirmar</p>
                   <p className="text-zinc-400 text-sm font-medium">
                     Se você não é assinante de um plano, será cobrado um sinal de <strong className="text-blue-400">{VALOR_SINAL}</strong> via InfinitePay para garantir o horário.
+                    Esse valor é abatido do preço do serviço - você paga o restante no dia do atendimento.
                     Você será redirecionado para pagar com segurança. <strong>O sinal não é devolvido em caso de falta sem aviso prévio.</strong>
                   </p>
+                  {agendamento.servicosSelecionados.length > 0 && (() => {
+                    const totalServico = calcularTotalServicos(agendamento.servicosSelecionados);
+                    const restante = Math.max(totalServico - VALOR_SINAL_REAIS, 0);
+                    return (
+                      <div className="mt-3 pt-3 border-t border-blue-500/20 text-sm space-y-1">
+                        <div className="flex justify-between text-zinc-400">
+                          <span>Valor do serviço</span>
+                          <span className="font-bold text-zinc-300">{formatarReais(totalServico)}</span>
+                        </div>
+                        <div className="flex justify-between text-zinc-400">
+                          <span>Sinal (pago agora)</span>
+                          <span className="font-bold text-blue-400">{formatarReais(VALOR_SINAL_REAIS)}</span>
+                        </div>
+                        <div className="flex justify-between text-zinc-200">
+                          <span className="font-bold">Restante no atendimento</span>
+                          <span className="font-bold">{formatarReais(restante)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

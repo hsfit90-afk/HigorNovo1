@@ -267,7 +267,9 @@ export default function Home() {
     setLoadingAgendamento(true);
     const temCorteDoPlanoDisponivel = await verificarAssinaturaAtiva(agendamento.cliente_telefone);
 
-    if (temCorteDoPlanoDisponivel || !SINAL_ATIVO) {
+    // O dono da barbearia (admin logado) agenda sem pagar sinal - útil pra
+    // encaixar cliente na mão, bloquear horário ou testar o fluxo.
+    if (temCorteDoPlanoDisponivel || isAdmin || !SINAL_ATIVO) {
       finalizarAgendamento();
     } else {
       await pagarSinalEAgendar();
@@ -803,8 +805,8 @@ export default function Home() {
               </div>
             </div>
             
-            {/* AVISO DO SINAL - só aparece quando SINAL_ATIVO estiver ligado */}
-            {SINAL_ATIVO && (
+            {/* AVISO DO SINAL - escondido pro admin, que agenda sem pagar sinal */}
+            {SINAL_ATIVO && !isAdmin && (
               <div className="mb-4 relative z-10 bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl flex items-start gap-3">
                 <div className="mt-0.5 text-blue-500">
                   <AlertTriangle size={20} />

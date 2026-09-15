@@ -69,6 +69,14 @@ export default function Home() {
 
   useEffect(() => {
     const checkStatusLoja = async () => {
+      // Função segura do banco (ver supabase/protecao_dados.sql). Se ela
+      // ainda não existir, cai no acesso antigo - garante que o site não
+      // quebra no intervalo entre subir este código e rodar o SQL.
+      const { data: fechada, error } = await supabase.rpc('loja_fechada');
+      if (!error) {
+        setIsLojaFechada(fechada === true);
+        return;
+      }
       const { data } = await supabase
         .from('agendamentos')
         .select('id')
@@ -226,19 +234,28 @@ export default function Home() {
     }
   }, [agendamento.data]);
 
-  const buscarHorariosOcupados = async (data: string) => {
-    const { data: agendamentos } = await supabase
+  // Lê só hora e status do dia, sem dado pessoal, pela função segura do banco
+  // (ver supabase/protecao_dados.sql). Se ela ainda não existir, cai no acesso
+  // antigo - garante que o site não quebra entre subir o código e rodar o SQL.
+  const lerHorariosDoDia = async (data: string): Promise<{ hora: string; status: string }[]> => {
+    const { data: viaFuncao, error } = await supabase.rpc('horarios_ocupados', { p_data: data });
+    if (!error) return viaFuncao || [];
+
+    const { data: viaTabela } = await supabase
       .from('agendamentos')
       .select('hora, status')
       .eq('data', data);
+    return viaTabela || [];
+  };
+
+  const buscarHorariosOcupados = async (data: string) => {
+    const agendamentos = await lerHorariosDoDia(data);
 
     // Só agendamento pago ocupa horário - checkout aberto sem pagamento não
     // segura nada (ver STATUS_QUE_NAO_OCUPAM em lib/pagamento.ts).
-    if (agendamentos) {
-      setHorariosOcupados(
-        agendamentos.filter(a => !STATUS_QUE_NAO_OCUPAM.includes(a.status)).map(a => a.hora)
-      );
-    }
+    setHorariosOcupados(
+      agendamentos.filter(a => !STATUS_QUE_NAO_OCUPAM.includes(a.status)).map(a => a.hora)
+    );
   };
 
   const toggleServico = (nome: string) => {
@@ -260,6 +277,12 @@ export default function Home() {
     const telefoneNormalizado = telefone.replace(/\D/g, '');
     if (!telefoneNormalizado) return false;
 
+    // A lista de assinantes não é mais legível pelo site - só o banco responde
+    // sim/não pra esse telefone (ver supabase/protecao_dados.sql).
+    const { data: temCorte, error } = await supabase.rpc('tem_corte_de_plano', { p_telefone: telefoneNormalizado });
+    if (!error) return temCorte === true;
+
+    // Acesso antigo, só até o SQL de proteção rodar.
     const { data: assinante } = await supabase
       .from('assinantes')
       .select('cortes_usados, cortes_mes_referencia')
@@ -351,15 +374,12 @@ export default function Home() {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
 
-    // Verifica se já existe um agendamento para este dia e horário antes de inserir
-    const { data: linhasDoHorario, error: checkError } = await supabase
-      .from('agendamentos')
-      .select('id, status')
-      .eq('data', agendamento.data)
-      .eq('hora', agendamento.hora);
-
+    // Verifica se já existe um agendamento para este dia e horário antes de inserir.
     // Checkout aberto sem pagamento não ocupa horário - só agendamento pago.
-    const checkData = (linhasDoHorario || []).filter(l => !STATUS_QUE_NAO_OCUPAM.includes(l.status));
+    const linhasDoDia = await lerHorariosDoDia(agendamento.data);
+    const checkData = linhasDoDia.filter(
+      l => l.hora === agendamento.hora && !STATUS_QUE_NAO_OCUPAM.includes(l.status)
+    );
 
     // O dono pode encaixar mais de um cliente no mesmo horário (ex: cliente
     // sem celular, marcado na mão). Só o cliente agendando sozinho é barrado.

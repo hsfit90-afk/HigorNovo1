@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { confirmarReservaPaga } from '../../../../lib/pagamento';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabaseServer as supabase } from '../../../../lib/supabaseServer';
 
 // A InfinitePay chama esta URL quando o pagamento é processado. Ela não
 // manda um campo "pago: true" - manda o valor cobrado e o valor pago, e

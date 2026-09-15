@@ -14,10 +14,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Sinal cobrado via API de Checkout da InfinitePay (ver app/api/pagamento/criar).
-// Handle confirmado (pietro_augusto) e migração supabase/adicionar_pagamento_sinal.sql
-// já rodada - ligado.
-const SINAL_ATIVO = true;
+// Cobrança de sinal via InfinitePay (ver app/api/pagamento/criar).
+// DESLIGADO por decisão do dono: qualquer cliente agenda sem pagar nada
+// antes. Toda a integração (rotas, tela de pagamento, página de retorno)
+// continua no código, só não é acionada - pra religar, basta trocar pra true.
+const SINAL_ATIVO = false;
 const VALOR_SINAL = "R$ 10,00";
 
 const planos = [
@@ -287,7 +288,11 @@ export default function Home() {
     }
 
     setLoadingAgendamento(true);
-    const temCorteDoPlanoDisponivel = await verificarAssinaturaAtiva(agendamento.cliente_telefone);
+
+    // Com o sinal desligado ninguém paga, então nem consulta o plano.
+    const temCorteDoPlanoDisponivel = SINAL_ATIVO
+      ? await verificarAssinaturaAtiva(agendamento.cliente_telefone)
+      : true;
 
     // O dono da barbearia (admin logado) agenda sem pagar sinal - útil pra
     // encaixar cliente na mão, bloquear horário ou testar o fluxo.
@@ -615,7 +620,7 @@ export default function Home() {
             Planos de Mensalidade
           </h2>
           <p className="text-zinc-400 text-lg mt-4 max-w-xl mx-auto">
-            Garanta seus cortes do mês por um preço fixo — sem pagar sinal a cada agendamento.
+            Garanta seus cortes do mês por um preço fixo e economize.
           </p>
         </div>
 

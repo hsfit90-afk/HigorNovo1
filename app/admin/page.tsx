@@ -290,7 +290,7 @@ export default function AdminPage() {
               Clientes Assinantes
             </h3>
             <p className="text-zinc-400 text-sm mb-5">
-              Assinantes não pagam o sinal de R$10 nos primeiros 4 cortes do mês. Cadastre aqui depois de confirmar o pagamento do plano no InfinitePay.
+              Cada plano dá direito a 4 cortes por mês. Cadastre aqui depois de confirmar o pagamento do plano no InfinitePay.
               Depois de cada atendimento, clique em <strong className="text-blue-400">"+ Corte"</strong> pra marcar - o contador zera sozinho no mês seguinte.
             </p>
 

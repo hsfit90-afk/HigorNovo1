@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -69,8 +69,42 @@ export default function RecuperarSenha() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Depois de enviar, o botão fica travado por um tempo. Sem isso o cliente
+  // clicava de novo (o email demora / cai no spam), o Supabase recusava o
+  // segundo pedido por segurança e a tela mostrava um erro em inglês no
+  // lugar do "email enviado" - parecendo que nunca tinha funcionado.
+  const [segundosParaReenviar, setSegundosParaReenviar] = useState(0);
+  const enviandoRef = useRef(false);
+
+  useEffect(() => {
+    if (segundosParaReenviar <= 0) return;
+    const timer = setTimeout(() => setSegundosParaReenviar(s => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [segundosParaReenviar]);
+
+  const traduzirErro = (mensagem: string): { texto: string; aguardar?: number } => {
+    const trava = mensagem.match(/after (\d+) seconds?/i);
+    if (trava) {
+      const segundos = Number(trava[1]);
+      return {
+        texto: 'Já enviamos um email pra você há pouco. Confira a caixa de entrada e a pasta de spam antes de pedir outro.',
+        aguardar: segundos,
+      };
+    }
+    if (/rate limit/i.test(mensagem)) {
+      return { texto: 'Muitos emails enviados em pouco tempo. Aguarde alguns minutos e tente de novo.' };
+    }
+    if (/invalid|not found|user/i.test(mensagem)) {
+      return { texto: 'Não encontramos uma conta com esse email. Confira se digitou certo.' };
+    }
+    return { texto: 'Não foi possível enviar o email agora. Tente de novo em instantes.' };
+  };
+
   const handlePedirRecuperacao = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (enviandoRef.current || segundosParaReenviar > 0) return;
+
+    enviandoRef.current = true;
     setLoading(true);
     setMessage('');
 
@@ -79,11 +113,16 @@ export default function RecuperarSenha() {
     });
 
     if (error) {
-      setMessage('Erro: ' + error.message);
+      const { texto, aguardar } = traduzirErro(error.message);
+      setMessage(texto);
+      if (aguardar) setSegundosParaReenviar(aguardar);
     } else {
-      setMessage('Te enviamos um email com as instruções para criar uma nova senha!');
+      setMessage('Email enviado! Abra o link que está nele para criar sua nova senha. Se não aparecer em 1 minuto, confira a pasta de spam.');
+      setSegundosParaReenviar(60);
     }
+
     setLoading(false);
+    enviandoRef.current = false;
   };
 
   const handleRedefinirSenha = async (e: React.FormEvent) => {
@@ -134,17 +173,27 @@ export default function RecuperarSenha() {
               </div>
 
               {message && (
-                <div className={`p-4 rounded-xl text-sm font-semibold text-center ${message.includes('enviamos') ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
+                <div className={`p-4 rounded-xl text-sm font-semibold text-center ${
+                  message.startsWith('Email enviado')
+                    ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                    : message.startsWith('Já enviamos')
+                    ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                    : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                }`}>
                   {message}
                 </div>
               )}
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || segundosParaReenviar > 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-zinc-950 font-bold py-4 rounded-xl transition-all disabled:opacity-50"
               >
-                {loading ? 'Enviando...' : 'Enviar link de recuperação'}
+                {loading
+                  ? 'Enviando...'
+                  : segundosParaReenviar > 0
+                  ? `Reenviar em ${segundosParaReenviar}s`
+                  : 'Enviar link de recuperação'}
               </button>
             </form>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle, X, Copy, Check, ExternalLink } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle, X, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { servicos, calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../lib/servicos';
 import { STATUS_QUE_NAO_OCUPAM } from '../lib/pagamento';
@@ -955,36 +955,37 @@ export default function Home() {
 
             <h3 className="text-xl font-black text-white text-center mb-2 pr-6">Falta só o pagamento</h3>
             <p className="text-zinc-400 text-sm text-center mb-5">
-              Pague o sinal de <span className="text-blue-500 font-bold">{VALOR_SINAL}</span> para confirmar seu horário.
-              O botão abre a página segura da InfinitePay, com Pix ou cartão.
+              Sinal de <span className="text-blue-500 font-bold">{VALOR_SINAL}</span> para confirmar seu horário.
             </p>
+
+            {/* Passo a passo explícito: o fluxo antigo era "copiar código Pix e
+                colar no banco", e cliente tentou repetir isso com o link da
+                página - o banco recusa, porque link não é código Pix. */}
+            <ol className="text-sm text-zinc-300 space-y-3 mb-5 font-medium">
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-blue-600/10 text-blue-500 flex items-center justify-center flex-shrink-0 font-bold text-xs">1</span>
+                <span>Toque no botão azul abaixo.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-blue-600/10 text-blue-500 flex items-center justify-center flex-shrink-0 font-bold text-xs">2</span>
+                <span>Vai abrir a página da InfinitePay. <strong className="text-white">O QR code e o código Pix copia e cola aparecem lá</strong> (ou pague no cartão).</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-blue-600/10 text-blue-500 flex items-center justify-center flex-shrink-0 font-bold text-xs">3</span>
+                <span>Depois de pagar, seu horário é confirmado sozinho.</span>
+              </li>
+            </ol>
 
             <a
               href={cobranca.checkoutUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-black rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] mb-3"
+              className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-black rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] mb-4"
             >
-              <ExternalLink size={18} /> Pagar {VALOR_SINAL}
+              <ExternalLink size={18} /> Pagar com Pix ou cartão
             </a>
 
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(cobranca.checkoutUrl);
-                  setLinkCopiado(true);
-                  setTimeout(() => setLinkCopiado(false), 2000);
-                } catch {
-                  alert('Não foi possível copiar. Use o botão "Pagar" acima.');
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-3 rounded-xl font-bold text-sm mb-5 transition-all"
-            >
-              {linkCopiado ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
-              {linkCopiado ? 'Link copiado!' : 'Copiar link de pagamento'}
-            </button>
-
-            <div className="mb-5 bg-yellow-500/10 border border-yellow-500/30 p-3.5 rounded-xl flex items-start gap-2.5">
+            <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 p-3.5 rounded-xl flex items-start gap-2.5">
               <AlertTriangle size={18} className="text-yellow-500 flex-shrink-0 mt-0.5" />
               <p className="text-zinc-300 text-xs font-medium leading-relaxed">
                 O horário só fica reservado <strong className="text-yellow-500">depois do pagamento confirmado</strong>.
@@ -994,9 +995,28 @@ export default function Home() {
 
             <button
               onClick={() => router.push(`/agendamento/retorno?order_nsu=${cobranca.orderNsu}`)}
-              className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-sm transition-all"
+              className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-sm transition-all mb-3"
             >
               Já paguei — verificar agora
+            </button>
+
+            {/* Saída de emergência, propositalmente discreta e com aviso claro
+                de que isso NÃO é código Pix. */}
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(cobranca.checkoutUrl);
+                  setLinkCopiado(true);
+                  setTimeout(() => setLinkCopiado(false), 4000);
+                } catch {
+                  alert('Não foi possível copiar. Use o botão "Pagar" acima.');
+                }
+              }}
+              className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-4 leading-relaxed"
+            >
+              {linkCopiado
+                ? 'Link copiado — cole na barra de endereço do navegador (isso NÃO é código Pix, não cole no banco)'
+                : 'A página não abriu? Copiar o link para colar no navegador'}
             </button>
           </div>
         </div>

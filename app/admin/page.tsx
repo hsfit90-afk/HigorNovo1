@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [mensagemAviso, setMensagemAviso] = useState('');
   const [assinantes, setAssinantes] = useState<any[]>([]);
+  const [pagosSemHorario, setPagosSemHorario] = useState<any[]>([]);
   const [subAbaPlano, setSubAbaPlano] = useState<'ouro' | 'diamante'>('ouro');
   const [novoAssinanteNome, setNovoAssinanteNome] = useState('');
   const [novoAssinanteTelefone, setNovoAssinanteTelefone] = useState('');
@@ -60,15 +61,21 @@ export default function AdminPage() {
     const dataAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);
     const horaAtual = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(agora);
 
-    const { data } = await supabase
+    const { data: todasLinhas } = await supabase
       .from('agendamentos')
       .select('*')
-      // Reservas com sinal ainda não pago não são agendamentos de verdade
-      // (ver app/api/pagamento/criar) - não mostra pro barbeiro até confirmar.
+      // Reservas com sinal ainda não pago (ou que venceram sem pagamento) não
+      // são agendamentos de verdade - ver app/api/pagamento/criar.
       .neq('status', 'aguardando_pagamento')
+      .neq('status', 'expirado')
       .order('data', { ascending: false })
       .order('hora', { ascending: false });
-      
+
+    // Cliente pagou o sinal depois do prazo e o horário já tinha sido pego por
+    // outra pessoa: não é um agendamento válido, mas você precisa resolver.
+    setPagosSemHorario((todasLinhas || []).filter(ag => ag.status === 'pago_sem_horario'));
+    const data = (todasLinhas || []).filter(ag => ag.status !== 'pago_sem_horario');
+
     if (data) {
       const agendamentosPendentes = data.filter(ag => {
         if (ag.data > dataAtual) return true;
@@ -443,6 +450,55 @@ export default function AdminPage() {
             )}
           </div>
         ) : (
+        <>
+        {/* Cliente pagou o sinal com atraso e o horário já tinha sido pego por
+            outra pessoa - precisa remarcar ou devolver o valor. */}
+        {abaAtiva === 'proximos' && pagosSemHorario.length > 0 && (
+          <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-5">
+            <p className="text-yellow-500 font-black text-sm uppercase tracking-wider mb-3">
+              Pagaram o sinal e ficaram sem horário ({pagosSemHorario.length})
+            </p>
+            <div className="space-y-2">
+              {pagosSemHorario.map((ag) => (
+                <div key={ag.id} className="flex items-center justify-between gap-3 flex-wrap bg-zinc-950/40 border border-white/5 rounded-xl p-3">
+                  <div className="min-w-0">
+                    <p className="text-white font-semibold text-sm">{ag.cliente_nome} — {ag.cliente_telefone}</p>
+                    <p className="text-zinc-400 text-xs">
+                      Queria {formatarData(ag.data)} às {ag.hora} • {ag.servico}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {ag.comprovante_url && (
+                      <a
+                        href={ag.comprovante_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-lg transition-all"
+                      >
+                        Comprovante
+                      </a>
+                    )}
+                    <a
+                      href={`https://wa.me/55${String(ag.cliente_telefone || '').replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-lg transition-all"
+                    >
+                      WhatsApp
+                    </a>
+                    <button
+                      onClick={() => deletarAgendamento(ag.id)}
+                      className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all"
+                      title="Já resolvi este caso"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-1 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[800px]">
@@ -527,6 +583,7 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+        </>
         )}
       </div>
     </div>

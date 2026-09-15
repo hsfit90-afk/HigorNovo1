@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { confirmarReservaPaga } from '../../../../lib/pagamento';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,13 +28,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ status: 'nao_encontrado' });
   }
 
-  if (agendamento.status !== 'aguardando_pagamento') {
+  if (agendamento.status === 'Pendente') {
     return NextResponse.json({ status: 'confirmado', agendamento });
   }
 
-  // Ainda aguardando: se voltamos do checkout com os dados da transação,
-  // confirma ativamente na InfinitePay - cobre o caso do webhook atrasar
-  // ou (em ambiente local, sem URL pública) nunca chegar a ser chamado.
+  if (agendamento.status === 'pago_sem_horario') {
+    return NextResponse.json({ status: 'pago_sem_horario', agendamento });
+  }
+
+  // Voltamos do checkout com os dados da transação: confirma ativamente na
+  // InfinitePay - cobre o webhook atrasar, falhar, ou (em ambiente local, sem
+  // URL pública) nunca chegar a ser chamado.
   const handle = process.env.INFINITEPAY_HANDLE;
   if (handle && transactionNsu && slug) {
     try {
@@ -45,25 +50,16 @@ export async function GET(request: Request) {
       const resultado = await respostaCheck.json().catch(() => null);
 
       if (resultado?.paid === true) {
-        const { data: atualizado } = await supabase
-          .from('agendamentos')
-          .update({
-            status: 'Pendente',
-            transacao_nsu: transactionNsu,
-            comprovante_url: receiptUrl || null,
-            expira_em: null,
-          })
-          .eq('order_nsu', orderNsu)
-          .select()
-          .single();
-
-        return NextResponse.json({ status: 'confirmado', agendamento: atualizado });
+        const confirmacao = await confirmarReservaPaga(supabase, orderNsu, {
+          transacaoNsu: transactionNsu,
+          comprovanteUrl: receiptUrl,
+        });
+        return NextResponse.json(confirmacao);
       }
     } catch {
       // Segue e responde "aguardando" abaixo - o front-end tenta de novo.
     }
   }
 
-  const expirado = agendamento.expira_em ? new Date(agendamento.expira_em) < new Date() : false;
-  return NextResponse.json({ status: expirado ? 'expirado' : 'aguardando' });
+  return NextResponse.json({ status: 'aguardando' });
 }

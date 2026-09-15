@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { confirmarReservaPaga } from '../../../../lib/pagamento';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,31 +18,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'order_nsu ausente' }, { status: 400 });
   }
 
-  const { data: agendamento } = await supabase
-    .from('agendamentos')
-    .select('id, status')
-    .eq('order_nsu', orderNsu)
-    .maybeSingle();
-
-  // Não é nosso pedido, ou já foi confirmado antes (pelo retorno do checkout,
-  // por exemplo) - responde 200 pra InfinitePay não ficar reenviando.
-  if (!agendamento || agendamento.status !== 'aguardando_pagamento') {
-    return NextResponse.json({ ok: true });
-  }
-
   const valorCobrado = Number(body.amount) || 0;
   const valorPago = Number(body.paid_amount) || 0;
 
-  if (valorPago > 0 && valorPago >= valorCobrado) {
-    await supabase
-      .from('agendamentos')
-      .update({
-        status: 'Pendente',
-        transacao_nsu: body.transaction_nsu || null,
-        comprovante_url: body.receipt_url || null,
-        expira_em: null,
-      })
-      .eq('order_nsu', orderNsu);
+  if (!(valorPago > 0 && valorPago >= valorCobrado)) {
+    // Pagamento parcial ou não aprovado: nada a fazer, mas responde 200 pra
+    // InfinitePay não ficar reenviando.
+    return NextResponse.json({ ok: true });
+  }
+
+  try {
+    await confirmarReservaPaga(supabase, orderNsu, {
+      transacaoNsu: body.transaction_nsu,
+      comprovanteUrl: body.receipt_url,
+    });
+  } catch {
+    // Falha inesperada no banco: responde erro pra InfinitePay tentar de novo,
+    // em vez de dar o pagamento como tratado.
+    return NextResponse.json({ error: 'Falha ao registrar o pagamento.' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

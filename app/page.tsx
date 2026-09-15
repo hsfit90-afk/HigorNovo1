@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle, X, Copy, Check, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { servicos, calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../lib/servicos';
+import { STATUS_QUE_NAO_OCUPAM } from '../lib/pagamento';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
 
@@ -62,6 +63,8 @@ export default function Home() {
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [isLojaFechada, setIsLojaFechada] = useState(false);
+  const [cobranca, setCobranca] = useState<{ checkoutUrl: string; orderNsu: string } | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState(false);
 
   useEffect(() => {
     const checkStatusLoja = async () => {
@@ -83,10 +86,32 @@ export default function Home() {
   const [isStandalone, setIsStandalone] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
+  const [pulouInstalacao, setPulouInstalacao] = useState(false);
+
+  const CHAVE_PULOU_INSTALACAO = 'novodenovo:pulou-instalacao';
+
+  // Não existe como perguntar ao celular "esse app já está instalado?" - dá
+  // só pra saber se ESTAMOS rodando dentro dele agora. Então quem já tem o
+  // app e mesmo assim cai na tela de instalar pode seguir em frente, e a
+  // escolha fica guardada pra não perguntar de novo.
+  const pularInstalacao = () => {
+    try {
+      localStorage.setItem(CHAVE_PULOU_INSTALACAO, '1');
+    } catch {
+      // Navegador sem armazenamento (aba anônima): segue sem lembrar.
+    }
+    setPulouInstalacao(true);
+  };
 
   useEffect(() => {
     const isAppStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
     setIsStandalone(isAppStandalone);
+
+    try {
+      if (localStorage.getItem(CHAVE_PULOU_INSTALACAO) === '1') setPulouInstalacao(true);
+    } catch {
+      // Sem armazenamento disponível: a tela de instalar volta a aparecer.
+    }
 
     const userAgent = window.navigator.userAgent.toLowerCase();
     const mobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
@@ -201,20 +226,17 @@ export default function Home() {
   }, [agendamento.data]);
 
   const buscarHorariosOcupados = async (data: string) => {
-    // Libera horários que ficaram reservados por um checkout nunca concluído.
-    await supabase
-      .from('agendamentos')
-      .delete()
-      .eq('status', 'aguardando_pagamento')
-      .lt('expira_em', new Date().toISOString());
-
     const { data: agendamentos } = await supabase
       .from('agendamentos')
-      .select('hora')
+      .select('hora, status')
       .eq('data', data);
 
+    // Só agendamento pago ocupa horário - checkout aberto sem pagamento não
+    // segura nada (ver STATUS_QUE_NAO_OCUPAM em lib/pagamento.ts).
     if (agendamentos) {
-      setHorariosOcupados(agendamentos.map(a => a.hora));
+      setHorariosOcupados(
+        agendamentos.filter(a => !STATUS_QUE_NAO_OCUPAM.includes(a.status)).map(a => a.hora)
+      );
     }
   };
 
@@ -306,7 +328,12 @@ export default function Home() {
         return;
       }
 
-      window.location.href = resultado.checkoutUrl;
+      // Não trocamos a tela do app pelo site de pagamento: dentro do app
+      // instalado (standalone) não existe barra de endereço nem botão voltar,
+      // e o cliente ficava preso numa tela branca se o checkout demorasse.
+      // Em vez disso, mostramos um botão que abre o pagamento no navegador.
+      setCobranca({ checkoutUrl: resultado.checkoutUrl, orderNsu: resultado.orderNsu });
+      setLoadingAgendamento(false);
     } catch {
       alert('Não foi possível conectar com o servidor de pagamento. Tente novamente.');
       setLoadingAgendamento(false);
@@ -320,17 +347,32 @@ export default function Home() {
     const userId = session?.user?.id;
 
     // Verifica se já existe um agendamento para este dia e horário antes de inserir
-    const { data: checkData, error: checkError } = await supabase
+    const { data: linhasDoHorario, error: checkError } = await supabase
       .from('agendamentos')
-      .select('id')
+      .select('id, status')
       .eq('data', agendamento.data)
       .eq('hora', agendamento.hora);
 
-    if (checkData && checkData.length > 0) {
+    // Checkout aberto sem pagamento não ocupa horário - só agendamento pago.
+    const checkData = (linhasDoHorario || []).filter(l => !STATUS_QUE_NAO_OCUPAM.includes(l.status));
+
+    // O dono pode encaixar mais de um cliente no mesmo horário (ex: cliente
+    // sem celular, marcado na mão). Só o cliente agendando sozinho é barrado.
+    if (!isAdmin && checkData && checkData.length > 0) {
       alert('Desculpe, este horário acabou de ser reservado. Por favor, escolha outro.');
       setLoadingAgendamento(false);
       buscarHorariosOcupados(agendamento.data); // Atualiza os horários ocupados
       return;
+    }
+
+    if (isAdmin && checkData && checkData.length > 0) {
+      const confirmaEncaixe = window.confirm(
+        `Já existe ${checkData.length === 1 ? 'um agendamento' : `${checkData.length} agendamentos`} nesse horário. Quer encaixar mais um?`
+      );
+      if (!confirmaEncaixe) {
+        setLoadingAgendamento(false);
+        return;
+      }
     }
 
     const servicosFormatados = agendamento.servicosSelecionados.join(' + ');
@@ -338,14 +380,15 @@ export default function Home() {
     const { error } = await supabase
       .from('agendamentos')
       .insert([
-        { 
+        {
           user_id: userId,
-          servico: servicosFormatados, 
-          data: agendamento.data, 
+          servico: servicosFormatados,
+          data: agendamento.data,
           hora: agendamento.hora,
           cliente_nome: agendamento.cliente_nome,
           cliente_telefone: agendamento.cliente_telefone,
-          status: 'Pendente'
+          status: 'Pendente',
+          criado_pelo_admin: isAdmin
         }
       ]);
 
@@ -404,7 +447,7 @@ export default function Home() {
   };
 
   // TELA DE BLOQUEIO (APARECE SE NÃO TIVER INSTALADO NO CELULAR)
-  if (hasChecked && !isStandalone && isMobile) {
+  if (hasChecked && !isStandalone && isMobile && !pulouInstalacao) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-50 flex flex-col items-center justify-center p-8 text-center selection:bg-blue-600 selection:text-zinc-950 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none"></div>
@@ -445,7 +488,7 @@ export default function Home() {
               </ol>
             </div>
           ) : (
-            <button 
+            <button
               onClick={handleInstallClick}
               className="w-full flex items-center justify-center gap-3 bg-blue-600 text-zinc-950 px-8 py-5 rounded-2xl font-black text-lg hover:bg-blue-500 transition-all shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:shadow-[0_0_50px_rgba(37,99,235,0.5)] hover:-translate-y-1"
             >
@@ -453,6 +496,17 @@ export default function Home() {
               Instalar Aplicativo Agora
             </button>
           )}
+
+          {/* Saída para quem já tem o app e mesmo assim cai aqui - o caso mais
+              comum é quem instalou pelo domínio antigo (higor-novo1), que ao
+              abrir é redirecionado pra cá e o celular deixa de reconhecer que
+              está dentro do app. Sem isso, essa pessoa nunca consegue agendar. */}
+          <button
+            onClick={pularInstalacao}
+            className="w-full mt-5 py-3 text-zinc-500 hover:text-zinc-300 text-sm font-semibold transition-all underline underline-offset-4"
+          >
+            Já tenho o app instalado — continuar assim mesmo
+          </button>
         </div>
       </div>
     );
@@ -774,20 +828,29 @@ export default function Home() {
                           );
                         }
 
+                        // O dono pode encaixar num horário já ocupado (cliente
+                        // sem celular, marcado na mão). Pro cliente, continua travado.
+                        const podeEncaixar = isOcupado && isAdmin;
+
                         return (
                           <button
                             key={hora}
-                            disabled={isOcupado}
+                            disabled={isOcupado && !isAdmin}
                             onClick={() => setAgendamento({ ...agendamento, hora })}
                             className={`p-2 rounded-xl text-sm font-bold border transition-all ${
-                              isOcupado
-                                ? 'bg-red-500/10 text-red-500/50 border-red-500/20 cursor-not-allowed'
-                                : agendamento.hora === hora
+                              agendamento.hora === hora
                                 ? 'bg-blue-600 text-zinc-950 border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                                : podeEncaixar
+                                ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:border-red-400 flex flex-col items-center justify-center gap-0.5 leading-none'
+                                : isOcupado
+                                ? 'bg-red-500/10 text-red-500/50 border-red-500/20 cursor-not-allowed'
                                 : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-blue-600/50 hover:bg-zinc-800'
                             }`}
                           >
                             {hora}
+                            {podeEncaixar && agendamento.hora !== hora && (
+                              <span className="text-[10px] uppercase text-red-400/70">Encaixar</span>
+                            )}
                           </button>
                         );
                       })
@@ -816,7 +879,8 @@ export default function Home() {
                   <p className="text-zinc-400 text-sm font-medium">
                     Se você não é assinante de um plano, será cobrado um sinal de <strong className="text-blue-400">{VALOR_SINAL}</strong> via InfinitePay para garantir o horário.
                     Esse valor é abatido do preço do serviço - você paga o restante no dia do atendimento.
-                    Você será redirecionado para pagar com segurança. <strong>O sinal não é devolvido em caso de falta sem aviso prévio.</strong>
+                    <strong className="text-white"> O horário só fica reservado depois do pagamento confirmado</strong> — se alguém pagar antes, avisamos você e devolvemos o valor.
+                    <strong> O sinal não é devolvido em caso de falta sem aviso prévio.</strong>
                   </p>
                   {agendamento.servicosSelecionados.length > 0 && (() => {
                     const totalServico = calcularTotalServicos(agendamento.servicosSelecionados);
@@ -876,6 +940,67 @@ export default function Home() {
         </div>
       </section>
       </main>
+
+      {/* PAGAMENTO DO SINAL - o link abre no navegador, fora do app instalado */}
+      {cobranca && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl relative">
+            <button
+              onClick={() => { setCobranca(null); setLinkCopiado(false); }}
+              className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors"
+              aria-label="Fechar"
+            >
+              <X size={22} />
+            </button>
+
+            <h3 className="text-xl font-black text-white text-center mb-2 pr-6">Falta só o pagamento</h3>
+            <p className="text-zinc-400 text-sm text-center mb-5">
+              Pague o sinal de <span className="text-blue-500 font-bold">{VALOR_SINAL}</span> para confirmar seu horário.
+              O botão abre a página segura da InfinitePay, com Pix ou cartão.
+            </p>
+
+            <a
+              href={cobranca.checkoutUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-black rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] mb-3"
+            >
+              <ExternalLink size={18} /> Pagar {VALOR_SINAL}
+            </a>
+
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(cobranca.checkoutUrl);
+                  setLinkCopiado(true);
+                  setTimeout(() => setLinkCopiado(false), 2000);
+                } catch {
+                  alert('Não foi possível copiar. Use o botão "Pagar" acima.');
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-3 rounded-xl font-bold text-sm mb-5 transition-all"
+            >
+              {linkCopiado ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+              {linkCopiado ? 'Link copiado!' : 'Copiar link de pagamento'}
+            </button>
+
+            <div className="mb-5 bg-yellow-500/10 border border-yellow-500/30 p-3.5 rounded-xl flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+              <p className="text-zinc-300 text-xs font-medium leading-relaxed">
+                O horário só fica reservado <strong className="text-yellow-500">depois do pagamento confirmado</strong>.
+                O sinal é abatido do valor do serviço e não é devolvido em caso de falta sem aviso.
+              </p>
+            </div>
+
+            <button
+              onClick={() => router.push(`/agendamento/retorno?order_nsu=${cobranca.orderNsu}`)}
+              className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-sm transition-all"
+            >
+              Já paguei — verificar agora
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* HISTÓRIA SECTION */}
       <section className="max-w-7xl mx-auto px-6 md:px-12 py-20 relative z-10">

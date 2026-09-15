@@ -10,7 +10,7 @@ const NUMERO_BARBEIRO = '5511953676910';
 const MAX_TENTATIVAS = 10;
 const INTERVALO_MS = 3000;
 
-type Estado = 'verificando' | 'confirmado' | 'aguardando' | 'expirado' | 'erro';
+type Estado = 'verificando' | 'confirmado' | 'aguardando' | 'pago_sem_horario' | 'erro';
 
 function RetornoConteudo() {
   const searchParams = useSearchParams();
@@ -48,8 +48,15 @@ function RetornoConteudo() {
           setEstado('confirmado');
           return;
         }
-        if (resultado.status === 'expirado') {
-          setEstado('expirado');
+        // Pagou, mas outra pessoa pagou esse horário primeiro - o barbeiro
+        // precisa remarcar ou devolver o sinal.
+        if (resultado.status === 'pago_sem_horario') {
+          setAgendamento(resultado.agendamento);
+          setEstado('pago_sem_horario');
+          return;
+        }
+        if (resultado.status === 'nao_encontrado') {
+          setEstado('erro');
           return;
         }
         if (tentativas >= MAX_TENTATIVAS) {
@@ -72,6 +79,14 @@ function RetornoConteudo() {
     const totalServico = calcularTotalServicos(agendamento.servico);
     const restante = Math.max(totalServico - VALOR_SINAL_REAIS, 0);
     const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${agendamento.servico}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A💰 *Valor do serviço:* ${formatarReais(totalServico)}%0A✅ *Sinal pago via InfinitePay:* ${formatarReais(VALOR_SINAL_REAIS)}%0A💵 *Restante no atendimento:* ${formatarReais(restante)}%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
+    return `https://wa.me/${NUMERO_BARBEIRO}?text=${texto}`;
+  };
+
+  // Pagou mas ficou sem horário: manda pro barbeiro o que ele precisa pra
+  // achar o pagamento e remarcar (ou devolver).
+  const linkWhatsAppSemHorario = () => {
+    const dataFormatada = agendamento?.data ? agendamento.data.split('-').reverse().join('/') : '';
+    const texto = `Olá! Paguei o sinal de ${formatarReais(VALOR_SINAL_REAIS)} pelo site, mas o horário que escolhi já tinha sido preenchido.%0A%0A👤 *Cliente:* ${agendamento?.cliente_nome || ''}%0A✂️ *Serviço:* ${agendamento?.servico || ''}%0A📅 *Era para:* ${dataFormatada} às ${agendamento?.hora || ''}%0A🧾 *Comprovante:* ${agendamento?.comprovante_url || 'enviarei aqui'}%0A%0APodemos remarcar?`;
     return `https://wa.me/${NUMERO_BARBEIRO}?text=${texto}`;
   };
 
@@ -144,12 +159,24 @@ function RetornoConteudo() {
           </>
         )}
 
-        {estado === 'expirado' && (
+        {estado === 'pago_sem_horario' && (
           <>
-            <AlertTriangle className="mx-auto mb-4 text-red-500" size={40} />
-            <h1 className="text-white font-black text-xl mb-2">Tempo para pagamento esgotado</h1>
-            <p className="text-zinc-400 text-sm mb-6">O horário foi liberado. Volte ao site e agende novamente.</p>
-            <Link href="/" className="block w-full py-4 bg-blue-600 hover:bg-blue-500 text-zinc-950 font-black rounded-xl transition-all">
+            <AlertTriangle className="mx-auto mb-4 text-yellow-500" size={40} />
+            <h1 className="text-white font-black text-xl mb-2">Seu pagamento chegou, mas o horário já foi preenchido</h1>
+            <p className="text-zinc-400 text-sm mb-6">
+              Outra pessoa pagou esse mesmo horário pouco antes de você.
+              <strong className="text-white"> Seu sinal está registrado</strong> — fale com a gente pelo WhatsApp
+              para remarcar ou receber o valor de volta.
+            </p>
+            <a
+              href={linkWhatsAppSemHorario()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full py-4 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl transition-all mb-3"
+            >
+              Falar no WhatsApp
+            </a>
+            <Link href="/" className="block text-zinc-500 hover:text-zinc-300 text-sm font-medium">
               Voltar para o início
             </Link>
           </>

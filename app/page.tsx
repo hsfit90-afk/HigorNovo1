@@ -331,6 +331,15 @@ export default function Home() {
       return;
     }
 
+    // Reserva a janela do WhatsApp AGORA, ainda dentro do toque do cliente.
+    // O navegador só permite abrir janela nesse instante - se esperarmos as
+    // idas ao servidor (sessão, horários, gravação), ele bloqueia. Era
+    // exatamente isso que fazia a mensagem parar de abrir. A janela fica em
+    // branco por 1-2s e depois é levada pro WhatsApp; se algo der errado, ela
+    // é fechada logo abaixo, e a tela de confirmação com o botão cobre o caso
+    // de o navegador ter bloqueado assim mesmo.
+    const janelaWhatsApp = SINAL_ATIVO ? null : window.open('', '_blank');
+
     setLoadingAgendamento(true);
 
     // Com o sinal desligado ninguém paga, então nem consulta o plano.
@@ -341,8 +350,9 @@ export default function Home() {
     // O dono da barbearia (admin logado) agenda sem pagar sinal - útil pra
     // encaixar cliente na mão, bloquear horário ou testar o fluxo.
     if (temCorteDoPlanoDisponivel || isAdmin || !SINAL_ATIVO) {
-      finalizarAgendamento();
+      await finalizarAgendamento(janelaWhatsApp);
     } else {
+      janelaWhatsApp?.close();
       await pagarSinalEAgendar();
     }
   };
@@ -389,7 +399,10 @@ export default function Home() {
     }
   };
 
-  const finalizarAgendamento = async () => {
+  // janelaWhatsApp: aba reservada no toque do cliente (ver iniciarAgendamento).
+  // Em caso de sucesso ela é levada pro WhatsApp; em qualquer outro caminho é
+  // fechada, pra não deixar aba em branco aberta no celular dele.
+  const finalizarAgendamento = async (janelaWhatsApp?: Window | null) => {
     setLoadingAgendamento(true);
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -405,6 +418,7 @@ export default function Home() {
     // O dono pode encaixar mais de um cliente no mesmo horário (ex: cliente
     // sem celular, marcado na mão). Só o cliente agendando sozinho é barrado.
     if (!isAdmin && checkData && checkData.length > 0) {
+      janelaWhatsApp?.close();
       alert('Desculpe, este horário acabou de ser reservado. Por favor, escolha outro.');
       setLoadingAgendamento(false);
       buscarHorariosOcupados(agendamento.data); // Atualiza os horários ocupados
@@ -416,6 +430,7 @@ export default function Home() {
         `Já existe ${checkData.length === 1 ? 'um agendamento' : `${checkData.length} agendamentos`} nesse horário. Quer encaixar mais um?`
       );
       if (!confirmaEncaixe) {
+        janelaWhatsApp?.close();
         setLoadingAgendamento(false);
         return;
       }
@@ -444,21 +459,31 @@ export default function Home() {
 
       const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
 
-      // Nada de abrir o WhatsApp sozinho: o navegador bloqueia janela aberta
-      // fora do toque do cliente, e dentro do app instalado isso virava uma
-      // tela branca. Agora mostramos uma tela com o botão pra ele tocar.
+      const linkWhatsApp = `https://wa.me/${numeroBarbeiro}?text=${texto}`;
+
+      // Leva a aba reservada no toque do cliente direto pro WhatsApp, com a
+      // mensagem pronta - ele só precisa apertar enviar, como era antes.
+      if (janelaWhatsApp && !janelaWhatsApp.closed) {
+        janelaWhatsApp.location.href = linkWhatsApp;
+      }
+
+      // A tela de confirmação aparece de qualquer jeito: garante que o cliente
+      // saiba que o horário está salvo, e dá o botão do WhatsApp caso a aba
+      // tenha sido bloqueada pelo navegador ou fechada por ele.
       setConfirmado({
         servico: servicosFormatados,
         dataFormatada,
         hora: agendamento.hora,
-        linkWhatsApp: `https://wa.me/${numeroBarbeiro}?text=${texto}`,
+        linkWhatsApp,
       });
       setSucesso(true);
     } else if (error.code === '23505') {
       // Trava definitiva contra corrida: o banco rejeitou por já existir alguém nesse horário
+      janelaWhatsApp?.close();
       alert('Desculpe, este horário acabou de ser reservado por outra pessoa. Por favor, escolha outro.');
       buscarHorariosOcupados(agendamento.data);
     } else {
+      janelaWhatsApp?.close();
       alert('Erro ao agendar: ' + error.message);
     }
     setLoadingAgendamento(false);
@@ -1008,8 +1033,9 @@ export default function Home() {
             </p>
 
             <p className="text-zinc-400 text-sm mb-4">
-              Seu agendamento <strong className="text-white">já está salvo</strong> — mesmo que você não avise no WhatsApp.
-              Mas é bom mandar a confirmação pro barbeiro:
+              Seu agendamento <strong className="text-white">já está salvo</strong>. Abrimos o WhatsApp com a mensagem
+              pronta pro barbeiro — <strong className="text-white">é só apertar enviar lá</strong>.
+              Se não abriu, use o botão:
             </p>
 
             <a

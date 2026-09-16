@@ -66,6 +66,27 @@ export default function Home() {
   const [isLojaFechada, setIsLojaFechada] = useState(false);
   const [cobranca, setCobranca] = useState<{ checkoutUrl: string; orderNsu: string } | null>(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [confirmado, setConfirmado] = useState<{
+    servico: string;
+    dataFormatada: string;
+    hora: string;
+    linkWhatsApp: string;
+  } | null>(null);
+
+  // Fecha a tela de confirmação e deixa o formulário pronto pra um novo agendamento.
+  const fecharConfirmacao = () => {
+    const dataAgendada = agendamento.data;
+    setConfirmado(null);
+    setSucesso(false);
+    setAgendamento({
+      servicosSelecionados: [],
+      data: '',
+      hora: '',
+      cliente_nome: agendamento.cliente_nome,
+      cliente_telefone: agendamento.cliente_telefone,
+    });
+    if (dataAgendada) buscarHorariosOcupados(dataAgendada);
+  };
 
   useEffect(() => {
     const checkStatusLoja = async () => {
@@ -420,23 +441,19 @@ export default function Home() {
     if (!error) {
       const numeroBarbeiro = "5511953676910";
       const dataFormatada = agendamento.data.split('-').reverse().join('/');
-      
-      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
-      
-      window.open(`https://wa.me/${numeroBarbeiro}?text=${texto}`, '_blank');
 
+      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
+
+      // Nada de abrir o WhatsApp sozinho: o navegador bloqueia janela aberta
+      // fora do toque do cliente, e dentro do app instalado isso virava uma
+      // tela branca. Agora mostramos uma tela com o botão pra ele tocar.
+      setConfirmado({
+        servico: servicosFormatados,
+        dataFormatada,
+        hora: agendamento.hora,
+        linkWhatsApp: `https://wa.me/${numeroBarbeiro}?text=${texto}`,
+      });
       setSucesso(true);
-      setTimeout(() => {
-        setSucesso(false);
-        setAgendamento({
-          servicosSelecionados: [],
-          data: '',
-          hora: '',
-          cliente_nome: '',
-          cliente_telefone: ''
-        });
-        buscarHorariosOcupados(agendamento.data);
-      }, 3000);
     } else if (error.code === '23505') {
       // Trava definitiva contra corrida: o banco rejeitou por já existir alguém nesse horário
       alert('Desculpe, este horário acabou de ser reservado por outra pessoa. Por favor, escolha outro.');
@@ -965,6 +982,54 @@ export default function Home() {
         </div>
       </section>
       </main>
+
+      {/* AGENDAMENTO CONFIRMADO - o WhatsApp abre por toque do cliente, nunca
+          sozinho: janela aberta fora do toque é bloqueada pelo navegador e,
+          dentro do app instalado, virava uma tela branca. */}
+      {confirmado && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl relative text-center">
+            <button
+              onClick={fecharConfirmacao}
+              className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors"
+              aria-label="Fechar"
+            >
+              <X size={22} />
+            </button>
+
+            <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
+              <ShieldCheck className="text-green-500" size={32} />
+            </div>
+
+            <h3 className="text-xl font-black text-white mb-2 pr-6">Horário garantido!</h3>
+            <p className="text-zinc-400 text-sm mb-1">{confirmado.servico}</p>
+            <p className="text-white font-bold mb-5">
+              {confirmado.dataFormatada} às {confirmado.hora}
+            </p>
+
+            <p className="text-zinc-400 text-sm mb-4">
+              Seu agendamento <strong className="text-white">já está salvo</strong> — mesmo que você não avise no WhatsApp.
+              Mas é bom mandar a confirmação pro barbeiro:
+            </p>
+
+            <a
+              href={confirmado.linkWhatsApp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-4 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl transition-all mb-3"
+            >
+              <ExternalLink size={18} /> Avisar no WhatsApp
+            </a>
+
+            <button
+              onClick={fecharConfirmacao}
+              className="w-full py-2 text-zinc-500 hover:text-zinc-300 text-sm font-medium transition-all"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* PAGAMENTO DO SINAL - o link abre no navegador, fora do app instalado */}
       {cobranca && (

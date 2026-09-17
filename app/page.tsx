@@ -310,14 +310,11 @@ export default function Home() {
       return;
     }
 
-    // Reserva a janela do WhatsApp AGORA, ainda dentro do toque do cliente.
-    // O navegador só permite abrir janela nesse instante - se esperarmos as
-    // idas ao servidor (sessão, horários, gravação), ele bloqueia. Era
-    // exatamente isso que fazia a mensagem parar de abrir. A janela fica em
-    // branco por 1-2s e depois é levada pro WhatsApp; se algo der errado, ela
-    // é fechada logo abaixo, e a tela de confirmação com o botão cobre o caso
-    // de o navegador ter bloqueado assim mesmo.
-    const janelaWhatsApp = SINAL_ATIVO ? null : window.open('', '_blank');
+    // No computador, reserva a aba do WhatsApp Web AGORA, ainda dentro do
+    // toque do cliente: o navegador só permite abrir aba nesse instante, e
+    // esperar as idas ao servidor faria ele bloquear. No celular não é
+    // preciso - lá o aplicativo é chamado direto, sem abrir aba nenhuma.
+    const janelaWhatsApp = SINAL_ATIVO || isMobile ? null : window.open('', '_blank');
 
     setLoadingAgendamento(true);
 
@@ -436,19 +433,33 @@ export default function Home() {
       const numeroBarbeiro = "5511953676910";
       const dataFormatada = agendamento.data.split('-').reverse().join('/');
 
-      const texto = `💈 *NOVO AGENDAMENTO NO SITE!* 💈%0A%0A👤 *Cliente:* ${agendamento.cliente_nome}%0A📱 *WhatsApp:* ${agendamento.cliente_telefone}%0A✂️ *Serviço:* ${servicosFormatados}%0A📅 *Data:* ${dataFormatada}%0A⏰ *Horário:* ${agendamento.hora}%0A%0A⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
+      const texto =
+        `💈 *NOVO AGENDAMENTO NO SITE!* 💈\n\n` +
+        `👤 *Cliente:* ${agendamento.cliente_nome}\n` +
+        `📱 *WhatsApp:* ${agendamento.cliente_telefone}\n` +
+        `✂️ *Serviço:* ${servicosFormatados}\n` +
+        `📅 *Data:* ${dataFormatada}\n` +
+        `⏰ *Horário:* ${agendamento.hora}\n\n` +
+        `⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
 
-      const linkWhatsApp = `https://wa.me/${numeroBarbeiro}?text=${texto}`;
+      const mensagem = encodeURIComponent(texto);
 
-      // Leva a aba reservada no toque do cliente direto pro WhatsApp, com a
-      // mensagem pronta - ele só precisa apertar enviar.
-      if (janelaWhatsApp && !janelaWhatsApp.closed) {
-        janelaWhatsApp.location.href = linkWhatsApp;
+      if (isMobile) {
+        // No celular, chama o aplicativo DIRETO. O link wa.me é uma página web
+        // que tenta repassar pro app - dentro do app instalado esse repasse é
+        // bloqueado e a página fica carregando pra sempre (acontecia sobretudo
+        // com o WhatsApp Business). Este formato não abre página nenhuma: o
+        // próprio celular entrega pro WhatsApp instalado, seja ele qual for.
+        janelaWhatsApp?.close();
+        window.location.href = `whatsapp://send?phone=${numeroBarbeiro}&text=${mensagem}`;
       } else {
-        // Navegador bloqueou a aba: leva a própria tela pro WhatsApp, em vez
-        // de não acontecer nada (foi o que deixou cliente sem saber se
-        // tinha marcado).
-        window.location.href = linkWhatsApp;
+        // No computador o caminho é o WhatsApp Web, em outra aba.
+        const linkWeb = `https://wa.me/${numeroBarbeiro}?text=${mensagem}`;
+        if (janelaWhatsApp && !janelaWhatsApp.closed) {
+          janelaWhatsApp.location.href = linkWeb;
+        } else {
+          window.open(linkWeb, '_blank');
+        }
       }
 
       setSucesso(true);

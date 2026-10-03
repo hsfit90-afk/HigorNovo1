@@ -402,9 +402,29 @@ export default function Home() {
     }
 
     if (isAdmin && checkData && checkData.length > 0) {
+      // Mostra QUEM já está no horário antes de encaixar. O aviso genérico
+      // ("já existe um agendamento, quer encaixar?") era fácil de confirmar
+      // no automático, e foi assim que um cliente acabou encaixado por cima
+      // de outro sem ninguém perceber.
+      const { data: jaMarcados } = await supabase
+        .from('agendamentos')
+        .select('cliente_nome, servico')
+        .eq('data', agendamento.data)
+        .eq('hora', agendamento.hora)
+        .not('status', 'in', '("aguardando_pagamento","expirado","pago_sem_horario")');
+
+      const nomes = (jaMarcados || [])
+        .map(a => `• ${a.cliente_nome || 'sem nome'} (${a.servico || 'serviço não informado'})`)
+        .join('\n');
+
+      const dataFormatadaAviso = agendamento.data.split('-').reverse().join('/');
       const confirmaEncaixe = window.confirm(
-        `Já existe ${checkData.length === 1 ? 'um agendamento' : `${checkData.length} agendamentos`} nesse horário. Quer encaixar mais um?`
+        `ATENÇÃO: o horário de ${agendamento.hora} do dia ${dataFormatadaAviso} JÁ ESTÁ OCUPADO.\n\n` +
+        `Quem já está marcado:\n${nomes || '• (não foi possível carregar os nomes)'}\n\n` +
+        `Quer mesmo encaixar ${agendamento.cliente_nome || 'este cliente'} no MESMO horário?\n\n` +
+        `Os dois serão atendidos às ${agendamento.hora}.`
       );
+
       if (!confirmaEncaixe) {
         janelaWhatsApp?.close();
         setLoadingAgendamento(false);

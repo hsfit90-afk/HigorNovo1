@@ -527,14 +527,26 @@ export default function AdminPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2 text-zinc-300 font-bold bg-zinc-900/50 w-fit px-3 py-1 rounded-lg border border-zinc-800">
-                        <Clock size={16} className="text-blue-600" /> 
+                        <Clock size={16} className="text-blue-600" />
                         {agendamento.hora}
                       </div>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2 text-white font-semibold">
-                        <User size={16} className="text-zinc-500" /> 
+                        <User size={16} className="text-zinc-500" />
                         {agendamento.cliente_nome || 'Cliente não informou o nome'}
+                        {/* Encaixe feito no painel: o cliente não agendou sozinho
+                            pelo site, foi você que marcou por cima de um horário
+                            que já tinha alguém. Sem essa marca, um encaixe fica
+                            idêntico a um agendamento duplicado por erro. */}
+                        {agendamento.criado_pelo_admin && (
+                          <span
+                            className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-amber-500/10 text-amber-500 border border-amber-500/30 whitespace-nowrap"
+                            title="Agendamento feito por você no painel (encaixe)"
+                          >
+                            Encaixe
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="p-4">

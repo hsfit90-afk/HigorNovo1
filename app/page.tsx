@@ -66,6 +66,9 @@ export default function Home() {
   const [isLojaFechada, setIsLojaFechada] = useState(false);
   const [cobranca, setCobranca] = useState<{ checkoutUrl: string; orderNsu: string } | null>(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
+  // Só com isto ligado o dono consegue marcar por cima de um horário ocupado.
+  // Começa sempre desligado: encaixe tem que ser uma decisão, não um descuido.
+  const [modoEncaixe, setModoEncaixe] = useState(false);
 
   useEffect(() => {
     const checkStatusLoja = async () => {
@@ -391,17 +394,24 @@ export default function Home() {
       l => l.hora === agendamento.hora && !STATUS_QUE_NAO_OCUPAM.includes(l.status)
     );
 
-    // O dono pode encaixar mais de um cliente no mesmo horário (ex: cliente
-    // sem celular, marcado na mão). Só o cliente agendando sozinho é barrado.
-    if (!isAdmin && checkData && checkData.length > 0) {
+    // Horário ocupado barra todo mundo - inclusive o dono. Ele só passa se
+    // tiver ligado o "modo encaixe" de propósito antes de escolher o horário.
+    const horarioOcupado = checkData && checkData.length > 0;
+    const podeEncaixarAqui = isAdmin && modoEncaixe;
+
+    if (horarioOcupado && !podeEncaixarAqui) {
       janelaWhatsApp?.close();
-      alert('Desculpe, este horário acabou de ser reservado. Por favor, escolha outro.');
+      alert(
+        isAdmin
+          ? 'Este horário já tem cliente marcado. Para atender dois no mesmo horário, ligue o "Modo encaixe" antes de escolher o horário.'
+          : 'Desculpe, este horário acabou de ser reservado. Por favor, escolha outro.'
+      );
       setLoadingAgendamento(false);
       buscarHorariosOcupados(agendamento.data); // Atualiza os horários ocupados
       return;
     }
 
-    if (isAdmin && checkData && checkData.length > 0) {
+    if (horarioOcupado && podeEncaixarAqui) {
       // Mostra QUEM já está no horário antes de encaixar. O aviso genérico
       // ("já existe um agendamento, quer encaixar?") era fácil de confirmar
       // no automático, e foi assim que um cliente acabou encaixado por cima
@@ -445,7 +455,11 @@ export default function Home() {
           cliente_nome: agendamento.cliente_nome,
           cliente_telefone: agendamento.cliente_telefone,
           status: 'Pendente',
-          criado_pelo_admin: isAdmin
+          // Marca como encaixe SÓ quando realmente está por cima de alguém.
+          // Antes, todo agendamento feito pelo dono entrava como encaixe, e
+          // isso o deixava de fora da trava do banco - ou seja, um horário
+          // marcado por ele podia ser pego por um cliente depois.
+          criado_pelo_admin: horarioOcupado && podeEncaixarAqui
         }
       ]);
 
@@ -866,6 +880,42 @@ export default function Home() {
               </div>
             </div>
 
+            {/* MODO ENCAIXE - só o dono vê. Desligado por padrão: enquanto
+                estiver assim, horário ocupado fica bloqueado pra ele também. */}
+            {isAdmin && (
+              <div className={`mb-6 relative z-10 p-4 rounded-xl border flex items-start gap-3 transition-all ${
+                modoEncaixe
+                  ? 'bg-amber-500/10 border-amber-500/40'
+                  : 'bg-zinc-900/50 border-zinc-800'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setModoEncaixe(!modoEncaixe)}
+                  role="switch"
+                  aria-checked={modoEncaixe}
+                  className={`mt-0.5 w-12 h-7 rounded-full flex-shrink-0 transition-all relative ${
+                    modoEncaixe ? 'bg-amber-500' : 'bg-zinc-700'
+                  }`}
+                >
+                  <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${
+                    modoEncaixe ? 'left-6' : 'left-1'
+                  }`} />
+                </button>
+                <div>
+                  <p className={`font-bold text-sm uppercase tracking-wider mb-1 ${
+                    modoEncaixe ? 'text-amber-500' : 'text-zinc-400'
+                  }`}>
+                    Modo encaixe {modoEncaixe ? '— ligado' : '— desligado'}
+                  </p>
+                  <p className="text-zinc-400 text-sm font-medium">
+                    {modoEncaixe
+                      ? 'Você pode marcar por cima de um horário que já tem cliente. Desligue quando terminar.'
+                      : 'Ligue só para atender dois clientes no mesmo horário. Desligado, horário ocupado fica bloqueado também para você.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
               <div>
                 <label className="block text-sm font-bold text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
@@ -914,12 +964,16 @@ export default function Home() {
 
                         // O dono pode encaixar num horário já ocupado (cliente
                         // sem celular, marcado na mão). Pro cliente, continua travado.
-                        const podeEncaixar = isOcupado && isAdmin;
+                        // Encaixar só é possível com o modo encaixe ligado de
+                        // propósito. Sem isso, o dono era barrado só por um
+                        // aviso - e deu pra marcar por cima de um cliente sem
+                        // perceber, clicando OK no automático.
+                        const podeEncaixar = isOcupado && isAdmin && modoEncaixe;
 
                         return (
                           <button
                             key={hora}
-                            disabled={isOcupado && !isAdmin}
+                            disabled={isOcupado && !podeEncaixar}
                             onClick={() => setAgendamento({ ...agendamento, hora })}
                             className={`p-2 rounded-xl text-sm font-bold border transition-all ${
                               agendamento.hora === hora

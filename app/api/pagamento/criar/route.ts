@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { VALOR_SINAL_REAIS } from '../../../../lib/servicos';
 import { STATUS_QUE_NAO_OCUPAM } from '../../../../lib/pagamento';
+import { podeAgendar } from '../../../../lib/horarios';
 import { supabaseServer as supabase } from '../../../../lib/supabaseServer';
 
 // O sinal é abatido do valor do serviço no dia do atendimento - só esse
@@ -13,6 +14,13 @@ export async function POST(request: Request) {
 
   if (!servico || !data || !hora || !cliente_nome || !cliente_telefone) {
     return NextResponse.json({ error: 'Preencha todos os campos antes de pagar o sinal.' }, { status: 400 });
+  }
+
+  // A grade de atendimento é conferida aqui também, e não só na tela: a tela
+  // pode ser contornada chamando esta rota direto. Sem isso daria pra abrir
+  // uma cobrança num dia de folga do barbeiro (ver lib/horarios.ts).
+  if (!podeAgendar(data, hora)) {
+    return NextResponse.json({ error: 'Esse horário não está disponível na agenda. Escolha outro horário.' }, { status: 400 });
   }
 
   const handle = process.env.INFINITEPAY_HANDLE;

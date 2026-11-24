@@ -7,6 +7,7 @@ import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, D
 import { useRouter } from 'next/navigation';
 import { servicos, calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../lib/servicos';
 import { STATUS_QUE_NAO_OCUPAM } from '../lib/pagamento';
+import { horariosDoDia, podeAgendar, ehMadrugada, ehAlmoco, diaSeguinteFormatado } from '../lib/horarios';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
 
@@ -205,34 +206,24 @@ export default function Home() {
     if (agendamento.data) {
       buscarHorariosOcupados(agendamento.data);
       
-      const [ano, mes, dia] = agendamento.data.split('-');
-      const date = new Date(Number(ano), Number(mes) - 1, Number(dia));
-      const dayOfWeek = date.getDay(); 
-
-      if (dayOfWeek === 0) {
-        setHorariosDisponiveis([]); 
-        return;
-      }
-
-      let startHour = 9;
-      let endHour = 21;
-
-      if (dayOfWeek === 1) { startHour = 15; endHour = 21; } 
-      else if (dayOfWeek === 3) { startHour = 9; endHour = 20; } 
-      else if (dayOfWeek === 4) { startHour = 9; endHour = 18; } 
-
-      const slots: string[] = [];
-      for (let h = startHour; h < endHour; h++) {
-        slots.push(`${h.toString().padStart(2, '0')}:00`);
-      }
+      // A grade (expediente normal + datas com horário próprio) fica em
+      // lib/horarios.ts, usada também pela validação do servidor.
+      const slots = horariosDoDia(agendamento.data);
 
       // Se a data escolhida é hoje, tira da lista os horários que já passaram.
+      // Horário de madrugada fica fora dessa conta: o 00:00 do dia 23/12 é a
+      // virada pro dia 24, então ele não "passou" durante o dia 23 - sem essa
+      // ressalva ele sumiria da lista desde a primeira hora da manhã.
       const agora = new Date();
       const dataAtualSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);
       const horaAtualSP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(agora);
-      const slotsFuturos = agendamento.data === dataAtualSP ? slots.filter(hora => hora >= horaAtualSP) : slots;
+      const slotsFuturos = agendamento.data === dataAtualSP
+        ? slots.filter(hora => ehMadrugada(hora) || hora >= horaAtualSP)
+        : slots;
 
       setHorariosDisponiveis(slotsFuturos);
+      // Limpa a hora sempre que a data muda, inclusive quando o novo dia é
+      // fechado: senão uma hora escolhida antes continuaria no formulário.
       setAgendamento(prev => ({ ...prev, hora: '' }));
     }
   }, [agendamento.data]);
@@ -383,6 +374,17 @@ export default function Home() {
   // fechada, pra não deixar aba em branco aberta no celular dele.
   const finalizarAgendamento = async (janelaWhatsApp?: Window | null) => {
     setLoadingAgendamento(true);
+
+    // Confere a grade de novo antes de gravar. A lista de botões foi montada
+    // quando a data foi escolhida; se o dia for de folga ou a hora não existir
+    // no expediente, para aqui em vez de criar um agendamento que o barbeiro
+    // não vai atender.
+    if (!podeAgendar(agendamento.data, agendamento.hora)) {
+      janelaWhatsApp?.close();
+      alert('Esse horário não está disponível na agenda. Escolha outro horário.');
+      setLoadingAgendamento(false);
+      return;
+    }
 
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
@@ -947,9 +949,7 @@ export default function Home() {
                       horariosDisponiveis.map((hora) => {
                         const isOcupado = horariosOcupados.includes(hora);
                         
-                        const isAlmoco = hora.startsWith('13:') || hora.startsWith('14:');
-
-                        if (isAlmoco) {
+                        if (ehAlmoco(hora)) {
                           return (
                             <button
                               key={hora}
@@ -970,22 +970,34 @@ export default function Home() {
                         // perceber, clicando OK no automático.
                         const podeEncaixar = isOcupado && isAdmin && modoEncaixe;
 
+                        // Horário da virada da noite (ex.: 00:00 do dia 23/12).
+                        // Vai rotulado com a data real do atendimento pra ninguém
+                        // aparecer 24 horas antes do combinado.
+                        const ehVirada = ehMadrugada(hora);
+
                         return (
                           <button
                             key={hora}
                             disabled={isOcupado && !podeEncaixar}
                             onClick={() => setAgendamento({ ...agendamento, hora })}
                             className={`p-2 rounded-xl text-sm font-bold border transition-all ${
+                              ehVirada || podeEncaixar ? 'flex flex-col items-center justify-center gap-0.5 leading-none' : ''
+                            } ${
                               agendamento.hora === hora
                                 ? 'bg-blue-600 text-zinc-950 border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
                                 : podeEncaixar
-                                ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:border-red-400 flex flex-col items-center justify-center gap-0.5 leading-none'
+                                ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:border-red-400'
                                 : isOcupado
                                 ? 'bg-red-500/10 text-red-500/50 border-red-500/20 cursor-not-allowed'
                                 : 'bg-zinc-900/50 text-zinc-300 border-zinc-800 hover:border-blue-600/50 hover:bg-zinc-800'
                             }`}
                           >
                             {hora}
+                            {ehVirada && (
+                              <span className={`text-[10px] uppercase ${agendamento.hora === hora ? 'text-zinc-900' : 'text-blue-600/70'}`}>
+                                Madrugada de {diaSeguinteFormatado(agendamento.data)}
+                              </span>
+                            )}
                             {podeEncaixar && agendamento.hora !== hora && (
                               <span className="text-[10px] uppercase text-red-400/70">Encaixar</span>
                             )}

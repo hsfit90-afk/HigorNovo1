@@ -1,3 +1,18 @@
+-- =====================================================================
+-- SUBSTITUÍDO - NÃO EXECUTE MAIS ESTE ARQUIVO.
+--
+-- O gatilho criado aqui (trg_impede_horario_duplicado) foi substituído
+-- por supabase/trava_agenda_e_folgas.sql, que faz a mesma verificação e
+-- ainda:
+--   - usa pg_advisory_xact_lock, impedindo que dois envios simultâneos
+--     passem os dois (esta versão aqui conta registros sem lock, e por
+--     isso não segura uma corrida de verdade);
+--   - recusa agendamento em dia de folga do barbeiro.
+--
+-- Executar este arquivo recria o gatilho antigo e deixa a mesma regra
+-- escrita em dois lugares. Mantido só como registro histórico.
+-- =====================================================================
+
 -- TRAVA EXTRA contra dois clientes no mesmo horário.
 --
 -- Já existe um índice único (agendamentos_data_hora_ativos_unique) fazendo

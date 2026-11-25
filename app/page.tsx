@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle, X, ExternalLink } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, Download, Crown, Gem, ArrowRight, AlertTriangle, X, ExternalLink, CalendarCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { servicos, calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../lib/servicos';
 import { STATUS_QUE_NAO_OCUPAM } from '../lib/pagamento';
@@ -656,6 +656,19 @@ export default function Home() {
                 <span className="text-sm hidden md:inline">Painel do Admin</span>
               </button>
             </>
+          )}
+
+          {/* O dono acompanha tudo pelo painel; esta tela é a do cliente
+              ver e cancelar os próprios horários. */}
+          {isUserLoggedIn && !isAdmin && (
+            <button
+              onClick={() => router.push('/meus-agendamentos')}
+              className="flex items-center justify-center gap-2 w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 bg-blue-600/10 text-blue-600 rounded-full hover:bg-blue-600 hover:text-zinc-950 font-bold transition-all border border-blue-600/30 flex-shrink-0"
+              title="Meus agendamentos"
+            >
+              <CalendarCheck size={18} />
+              <span className="text-sm hidden md:inline">Meus agendamentos</span>
+            </button>
           )}
 
           {isUserLoggedIn ? (

@@ -11,7 +11,8 @@ import { ehMadrugada, diaSeguinteFormatado } from '../../lib/horarios';
 const NUMERO_BARBEIRO = '5511953676910';
 
 type Agendamento = {
-  id: number;
+  // uuid: a chave da tabela agendamentos é uuid, não número.
+  id: string;
   servico: string;
   data: string;
   hora: string;
@@ -40,7 +41,7 @@ export default function MeusAgendamentos() {
   const router = useRouter();
   const [estado, setEstado] = useState<Estado>('carregando');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
-  const [cancelandoId, setCancelandoId] = useState<number | null>(null);
+  const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const [erro, setErro] = useState('');
   const [isMobile, setIsMobile] = useState(false);
 

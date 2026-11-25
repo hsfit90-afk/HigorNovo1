@@ -13,7 +13,13 @@
 -- supabase/protecao_dados.sql.
 -- =====================================================================
 
-create or replace function public.cancelar_meu_agendamento(p_id bigint)
+-- A chave da tabela é uuid (id uuid not null default gen_random_uuid()).
+-- Uma primeira versão deste arquivo declarava o parâmetro como bigint; como
+-- 'create or replace' com outro tipo cria uma SEGUNDA função em vez de
+-- substituir, a versão errada precisa ser apagada pelo nome e tipo.
+drop function if exists public.cancelar_meu_agendamento(bigint);
+
+create or replace function public.cancelar_meu_agendamento(p_id uuid)
 returns table (servico text, data text, hora text)
 language plpgsql
 security definer
@@ -65,15 +71,19 @@ begin
 end $$;
 
 -- Só cliente logado chama. Visitante sem login não tem o que cancelar.
-revoke all on function public.cancelar_meu_agendamento(bigint) from public, anon;
-grant execute on function public.cancelar_meu_agendamento(bigint) to authenticated;
+revoke all on function public.cancelar_meu_agendamento(uuid) from public, anon;
+grant execute on function public.cancelar_meu_agendamento(uuid) to authenticated;
 
 
 -- ---------------------------------------------------------------------
 -- Conferência: a função existe e está com as permissões certas.
--- Tem que voltar 1 linha, com security_definer = true.
+--
+-- Tem que voltar EXATAMENTE 1 linha, com parametro = 'p_id uuid' e
+-- security_definer = true. Duas linhas significam que sobrou a versão
+-- antiga de parâmetro bigint, e o cancelamento do app falharia.
 -- ---------------------------------------------------------------------
 select p.proname                              as funcao,
+       pg_get_function_identity_arguments(p.oid) as parametro,
        p.prosecdef                            as security_definer,
        has_function_privilege('authenticated', p.oid, 'execute') as cliente_pode_executar,
        has_function_privilege('anon',          p.oid, 'execute') as visitante_pode_executar

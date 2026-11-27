@@ -78,11 +78,37 @@ export const EXCECOES: Record<string, string[]> = {
 // separado porque, por texto, '00:00' é menor que qualquer outro horário -
 // sem isso ele seria ordenado em primeiro e descartado como "já passou".
 export function ehMadrugada(hora: string): boolean {
+  // Sem esta guarda, string vazia seria "madrugada" (qualquer texto é menor
+  // que '06:00' na comparação) e a tela mostraria o rótulo da virada em
+  // cima de um horário que nem existe.
+  if (!hora) return false;
   return hora < LIMITE_MADRUGADA;
 }
 
 export function ehAlmoco(hora: string): boolean {
   return ALMOCO.includes(hora);
+}
+
+const FORMATO_DATA = /^\d{4}-\d{2}-\d{2}$/;
+const FORMATO_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Data existe de verdade no calendário?
+//
+// Só conferir o formato não basta: '2026-13-99' passa no formato e o
+// JavaScript aceita calado, transbordando para uma data válida qualquer
+// ('2026-13-99' vira abril de 2027). Como EXCECOES é consultada pelo texto
+// exato, uma data assim escapava da trava de dia de folga quando a rota de
+// pagamento era chamada direto, sem passar pela tela. Por isso a conferência
+// de ida e volta: a data remontada tem que ser idêntica à recebida.
+function dataValida(data: string): boolean {
+  if (typeof data !== 'string' || !FORMATO_DATA.test(data)) return false;
+  const [ano, mes, dia] = data.split('-').map(Number);
+  const d = new Date(ano, mes - 1, dia);
+  return d.getFullYear() === ano && d.getMonth() === mes - 1 && d.getDate() === dia;
+}
+
+function horaValida(hora: string): boolean {
+  return typeof hora === 'string' && FORMATO_HORA.test(hora);
 }
 
 // 'YYYY-MM-DD' -> 0 (domingo) a 6 (sábado). Monta a data em horário local,
@@ -95,7 +121,7 @@ function diaDaSemana(data: string): number {
 // Todos os horários que a tela mostra para a data, já na ordem do expediente
 // e incluindo o almoço (que vai riscado). Lista vazia = fechado nesse dia.
 export function horariosDoDia(data: string): string[] {
-  if (!data) return [];
+  if (!dataValida(data)) return [];
 
   const excecao = EXCECOES[data];
 
@@ -131,7 +157,7 @@ export function horariosAgendaveis(data: string): string[] {
 // Usado como trava antes de gravar, na tela e no servidor. Qualquer data/hora
 // fora da grade é recusada, mesmo que alguém monte a requisição na mão.
 export function podeAgendar(data: string, hora: string): boolean {
-  if (!data || !hora) return false;
+  if (!dataValida(data) || !horaValida(hora)) return false;
   return horariosAgendaveis(data).includes(hora);
 }
 

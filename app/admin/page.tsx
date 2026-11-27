@@ -291,7 +291,7 @@ export default function AdminPage() {
             </h3>
             <p className="text-zinc-400 text-sm mb-5">
               Cada plano dá direito a 4 cortes por mês. Cadastre aqui depois de confirmar o pagamento do plano no InfinitePay.
-              Depois de cada atendimento, clique em <strong className="text-blue-400">"+ Corte"</strong> pra marcar - o contador zera sozinho no mês seguinte.
+              Depois de cada atendimento, clique em <strong className="text-blue-400">&quot;+ Corte&quot;</strong> pra marcar - o contador zera sozinho no mês seguinte.
             </p>
 
             <div className="flex gap-3 mb-6">
@@ -396,7 +396,7 @@ export default function AdminPage() {
               Aviso rápido aos clientes
             </h3>
             <p className="text-zinc-400 text-sm mb-5">
-              Escreva o aviso (ex: fechamento antecipado hoje) e clique em "Enviar" ao lado de cada cliente com agendamento futuro — isso abre o WhatsApp já com a mensagem pronta, você só confirma o envio.
+              Escreva o aviso (ex: fechamento antecipado hoje) e clique em &quot;Enviar&quot; ao lado de cada cliente com agendamento futuro — isso abre o WhatsApp já com a mensagem pronta, você só confirma o envio.
             </p>
 
             <textarea

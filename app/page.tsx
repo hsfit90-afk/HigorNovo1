@@ -1245,7 +1245,7 @@ export default function Home() {
           <div className="w-full md:w-1/2 bg-zinc-900/40 backdrop-blur-3xl p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative">
             <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-blue-600/20 blur-[30px] rounded-full"></div>
             <p className="text-zinc-300 text-lg leading-relaxed mb-6 font-medium italic">
-              "A Barbearia Novo de Novo nasceu da paixão pela profissão e do compromisso com cada cliente."
+              &quot;A Barbearia Novo de Novo nasceu da paixão pela profissão e do compromisso com cada cliente.&quot;
             </p>
             <p className="text-zinc-400 text-md leading-relaxed mb-6">
               Localizada no Jardim Clementino, atendemos desde 2018 com foco em qualidade, respeito e atenção aos detalhes.

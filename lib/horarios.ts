@@ -150,3 +150,39 @@ export function diaSeguinteFormatado(data: string): string {
   const m = (seguinte.getMonth() + 1).toString().padStart(2, '0');
   return `${d}/${m}`;
 }
+
+// Data de hoje em São Paulo, no mesmo formato gravado na coluna 'data'.
+//
+// Existe porque o caminho intuitivo está errado: new Date().toISOString()
+// devolve a data em UTC, 3 horas à frente de Brasília. A partir das 21h o
+// site passaria a achar que já é amanhã - e no dia 23/12, em que o
+// atendimento vai até 00:00, isso tirava do ar justamente os horários da
+// noite. O celular do cliente também pode estar em outro fuso, então o
+// fuso é declarado explicitamente, nunca herdado do aparelho.
+export function hojeEmSaoPaulo(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+// Hora atual em São Paulo ('HH:MM'), para descartar horários que já passaram.
+export function horaAgoraEmSaoPaulo(): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date());
+}
+
+// Último dia que o cliente pode escolher no calendário, contado a partir da
+// data em São Paulo - e não da data em UTC, pelo mesmo motivo acima.
+export function limiteDeAgendamento(mesesAFrente: number = 2): string {
+  const [ano, mes, dia] = hojeEmSaoPaulo().split('-').map(Number);
+  const limite = new Date(ano, mes - 1 + mesesAFrente, dia);
+  const m = (limite.getMonth() + 1).toString().padStart(2, '0');
+  const d = limite.getDate().toString().padStart(2, '0');
+  return `${limite.getFullYear()}-${m}-${d}`;
+}

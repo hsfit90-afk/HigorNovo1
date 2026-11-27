@@ -7,7 +7,7 @@ import { Calendar, Clock, User, Phone, Scissors, ShieldCheck, LogOut, Droplet, D
 import { useRouter } from 'next/navigation';
 import { servicos, calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../lib/servicos';
 import { STATUS_QUE_NAO_OCUPAM } from '../lib/pagamento';
-import { horariosDoDia, podeAgendar, ehMadrugada, ehAlmoco, diaSeguinteFormatado } from '../lib/horarios';
+import { horariosDoDia, podeAgendar, ehMadrugada, ehAlmoco, diaSeguinteFormatado, hojeEmSaoPaulo, horaAgoraEmSaoPaulo, limiteDeAgendamento } from '../lib/horarios';
 import { abrirWhatsAppNoCelular, montarLinkWhatsApp } from '../lib/whatsapp';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
@@ -218,9 +218,8 @@ export default function Home() {
       // Horário de madrugada fica fora dessa conta: o 00:00 do dia 23/12 é a
       // virada pro dia 24, então ele não "passou" durante o dia 23 - sem essa
       // ressalva ele sumiria da lista desde a primeira hora da manhã.
-      const agora = new Date();
-      const dataAtualSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);
-      const horaAtualSP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(agora);
+      const dataAtualSP = hojeEmSaoPaulo();
+      const horaAtualSP = horaAgoraEmSaoPaulo();
       const slotsFuturos = agendamento.data === dataAtualSP
         ? slots.filter(hora => ehMadrugada(hora) || hora >= horaAtualSP)
         : slots;
@@ -942,13 +941,12 @@ export default function Home() {
                 <input
                   type="date"
                   value={agendamento.data}
-                  min={new Date().toISOString().split('T')[0]}
-                  // === NOVA REGRA DE TRAVAMENTO PARA 2 MESES ===
-                  max={(() => {
-                    const d = new Date();
-                    d.setMonth(d.getMonth() + 2);
-                    return d.toISOString().split('T')[0];
-                  })()}
+                  // Limites pelo fuso de São Paulo, não pelo UTC: o
+                  // toISOString() adianta 3 horas e, das 21h em diante,
+                  // passava a bloquear o próprio dia de hoje no calendário
+                  // (ver hojeEmSaoPaulo em lib/horarios.ts).
+                  min={hojeEmSaoPaulo()}
+                  max={limiteDeAgendamento(2)}
                   onChange={(e) => setAgendamento({ ...agendamento, data: e.target.value })}
                   className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl text-white outline-none focus:border-blue-600 transition-all font-medium color-scheme-dark"
                   style={{ colorScheme: 'dark' }}

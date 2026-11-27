@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Calendar, Clock, Scissors, Loader2, AlertTriangle, ArrowLeft, X, CalendarCheck, CheckCircle2, Phone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { STATUS_QUE_NAO_OCUPAM } from '../../lib/pagamento';
-import { ehMadrugada, diaSeguinteFormatado } from '../../lib/horarios';
+import { ehMadrugada, diaSeguinteFormatado, hojeEmSaoPaulo } from '../../lib/horarios';
 import { abrirWhatsAppNoCelular, montarLinkWhatsApp } from '../../lib/whatsapp';
 
 type Agendamento = {
@@ -23,17 +23,6 @@ type Estado = 'carregando' | 'pronto' | 'erro';
 // 'YYYY-MM-DD' -> 'DD/MM/AAAA'
 function formatarData(data: string): string {
   return data.split('-').reverse().join('/');
-}
-
-// Hoje em São Paulo, no mesmo formato gravado na coluna 'data'. O fuso é
-// explícito porque o celular do cliente pode estar em outro.
-function hojeEmSaoPaulo(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
 }
 
 export default function MeusAgendamentos() {

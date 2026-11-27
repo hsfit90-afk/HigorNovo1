@@ -5,8 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
 import { calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../../../lib/servicos';
+import { NUMERO_BARBEIRO } from '../../../lib/whatsapp';
 
-const NUMERO_BARBEIRO = '5511953676910';
+// Os links daqui montam o texto com %0A escrito à mão, então não passam
+// por montarLinkWhatsApp: ele codifica a mensagem e o %0A viraria %250A.
 const MAX_TENTATIVAS = 10;
 const INTERVALO_MS = 3000;
 

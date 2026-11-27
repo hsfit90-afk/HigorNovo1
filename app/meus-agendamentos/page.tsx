@@ -3,12 +3,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Calendar, Clock, Scissors, Loader2, AlertTriangle, ArrowLeft, X, CalendarCheck } from 'lucide-react';
+import { Calendar, Clock, Scissors, Loader2, AlertTriangle, ArrowLeft, X, CalendarCheck, CheckCircle2, Phone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { STATUS_QUE_NAO_OCUPAM } from '../../lib/pagamento';
 import { ehMadrugada, diaSeguinteFormatado } from '../../lib/horarios';
-
-const NUMERO_BARBEIRO = '5511953676910';
+import { abrirWhatsAppNoCelular, montarLinkWhatsApp } from '../../lib/whatsapp';
 
 type Agendamento = {
   // uuid: a chave da tabela agendamentos é uuid, não número.
@@ -44,6 +43,9 @@ export default function MeusAgendamentos() {
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const [erro, setErro] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  // Texto do aviso de cancelamento, mantido na tela como botão de reserva
+  // caso a abertura automática do WhatsApp não funcione no aparelho.
+  const [avisoWhatsApp, setAvisoWhatsApp] = useState<string | null>(null);
 
   useEffect(() => {
     setIsMobile(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
@@ -94,15 +96,14 @@ export default function MeusAgendamentos() {
       `⏰ *Horário:* ${ag.hora}${ehMadrugada(ag.hora) ? ` (madrugada de ${diaSeguinteFormatado(ag.data)})` : ''}\n\n` +
       `O horário já foi liberado na agenda.`;
 
-    const mensagem = encodeURIComponent(texto);
+    // Fica na tela como botão de reserva: a abertura automática falha em
+    // parte dos aparelhos, e falha em silêncio (ver lib/whatsapp.ts).
+    setAvisoWhatsApp(texto);
 
-    // Mesma mecânica do aviso de agendamento novo em app/page.tsx: no
-    // celular chama o aplicativo direto, porque o link wa.me trava dentro
-    // do app instalado; no computador abre o WhatsApp Web em outra aba.
     if (isMobile) {
-      window.location.href = `whatsapp://send?phone=${NUMERO_BARBEIRO}&text=${mensagem}`;
+      abrirWhatsAppNoCelular(texto);
     } else {
-      window.open(`https://wa.me/${NUMERO_BARBEIRO}?text=${mensagem}`, '_blank');
+      window.open(montarLinkWhatsApp(texto), '_blank');
     }
   };
 
@@ -246,6 +247,43 @@ export default function MeusAgendamentos() {
           </p>
         )}
       </main>
+
+      {/* AVISO AO BARBEIRO - rede de segurança.
+          A abertura automática do WhatsApp falha em parte dos aparelhos, e
+          falha em silêncio (ver lib/whatsapp.ts). Este cartão fica na tela
+          até o cliente fechar, pra que sempre exista um toque que funciona. */}
+      {avisoWhatsApp && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pointer-events-none">
+          <div className="max-w-md mx-auto bg-zinc-900 border border-green-500/30 rounded-[1.5rem] p-5 shadow-2xl pointer-events-auto">
+            <div className="flex items-start gap-3 mb-4">
+              <CheckCircle2 size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-zinc-100 text-sm">Agendamento cancelado!</p>
+                <p className="text-zinc-400 text-xs font-medium mt-1">
+                  Se o WhatsApp não abriu sozinho, avise o barbeiro por aqui.
+                </p>
+              </div>
+              <button
+                onClick={() => setAvisoWhatsApp(null)}
+                className="text-zinc-500 hover:text-white transition-colors flex-shrink-0"
+                aria-label="Fechar aviso"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <a
+              href={montarLinkWhatsApp(avisoWhatsApp)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setAvisoWhatsApp(null)}
+              className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-green-500 text-zinc-950 rounded-full font-bold hover:bg-green-400 transition-all"
+            >
+              <Phone size={18} />
+              Avisar no WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { servicos, calcularTotalServicos, formatarReais, VALOR_SINAL_REAIS } from '../lib/servicos';
 import { STATUS_QUE_NAO_OCUPAM } from '../lib/pagamento';
 import { horariosDoDia, podeAgendar, ehMadrugada, ehAlmoco, diaSeguinteFormatado } from '../lib/horarios';
+import { abrirWhatsAppNoCelular, montarLinkWhatsApp } from '../lib/whatsapp';
 import logoImg from './logo.jpeg';
 import donoImg from './dono.jpeg';
 
@@ -64,6 +65,9 @@ export default function Home() {
   const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
   const [loadingAgendamento, setLoadingAgendamento] = useState(false);
   const [sucesso, setSucesso] = useState(false);
+  // Texto do aviso ao barbeiro, mantido na tela como botão de reserva caso
+  // a abertura automática do WhatsApp não funcione no aparelho do cliente.
+  const [avisoWhatsApp, setAvisoWhatsApp] = useState<string | null>(null);
   const [isLojaFechada, setIsLojaFechada] = useState(false);
   const [cobranca, setCobranca] = useState<{ checkoutUrl: string; orderNsu: string } | null>(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
@@ -466,7 +470,6 @@ export default function Home() {
       ]);
 
     if (!error) {
-      const numeroBarbeiro = "5511953676910";
       const dataFormatada = agendamento.data.split('-').reverse().join('/');
 
       const texto =
@@ -478,19 +481,19 @@ export default function Home() {
         `⏰ *Horário:* ${agendamento.hora}\n\n` +
         `⚠️ *Aviso:* Ciente da tolerância máxima de 10 minutos.`;
 
-      const mensagem = encodeURIComponent(texto);
+      // Guarda o texto pro botão de reserva que fica na tela. Se as duas
+      // tentativas automáticas abaixo falharem, o cliente ainda consegue
+      // avisar num toque - e o barbeiro não perde o agendamento.
+      setAvisoWhatsApp(texto);
 
       if (isMobile) {
-        // No celular, chama o aplicativo DIRETO. O link wa.me é uma página web
-        // que tenta repassar pro app - dentro do app instalado esse repasse é
-        // bloqueado e a página fica carregando pra sempre (acontecia sobretudo
-        // com o WhatsApp Business). Este formato não abre página nenhuma: o
-        // próprio celular entrega pro WhatsApp instalado, seja ele qual for.
+        // Tenta o aplicativo e, se nenhum assumir, cai no wa.me.
+        // Ver lib/whatsapp.ts para o porquê dos dois caminhos.
         janelaWhatsApp?.close();
-        window.location.href = `whatsapp://send?phone=${numeroBarbeiro}&text=${mensagem}`;
+        abrirWhatsAppNoCelular(texto);
       } else {
         // No computador o caminho é o WhatsApp Web, em outra aba.
-        const linkWeb = `https://wa.me/${numeroBarbeiro}?text=${mensagem}`;
+        const linkWeb = montarLinkWhatsApp(texto);
         if (janelaWhatsApp && !janelaWhatsApp.closed) {
           janelaWhatsApp.location.href = linkWeb;
         } else {
@@ -1103,6 +1106,43 @@ export default function Home() {
         </div>
       </section>
       </main>
+
+      {/* AVISO AO BARBEIRO - rede de segurança.
+          A abertura automática do WhatsApp falha em parte dos aparelhos, e
+          falha em silêncio (ver lib/whatsapp.ts). Este cartão fica na tela
+          até o cliente fechar, pra que sempre exista um toque que funciona. */}
+      {avisoWhatsApp && (
+        <div className="fixed bottom-0 left-0 right-0 z-[55] p-4 pointer-events-none">
+          <div className="max-w-md mx-auto bg-zinc-900 border border-green-500/30 rounded-[1.5rem] p-5 shadow-2xl pointer-events-auto">
+            <div className="flex items-start gap-3 mb-4">
+              <ShieldCheck size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-zinc-100 text-sm">Agendamento confirmado!</p>
+                <p className="text-zinc-400 text-xs font-medium mt-1">
+                  Se o WhatsApp não abriu sozinho, avise o barbeiro por aqui.
+                </p>
+              </div>
+              <button
+                onClick={() => setAvisoWhatsApp(null)}
+                className="text-zinc-500 hover:text-white transition-colors flex-shrink-0"
+                aria-label="Fechar aviso"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <a
+              href={montarLinkWhatsApp(avisoWhatsApp)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setAvisoWhatsApp(null)}
+              className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-green-500 text-zinc-950 rounded-full font-bold hover:bg-green-400 transition-all"
+            >
+              <Phone size={18} />
+              Avisar no WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* PAGAMENTO DO SINAL - o link abre no navegador, fora do app instalado */}
       {cobranca && (
